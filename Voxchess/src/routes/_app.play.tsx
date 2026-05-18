@@ -22,10 +22,26 @@ export const Route = createFileRoute("/_app/play")({
   component: PlayPage,
 });
 
+function getGameResult(game: import("chess.js").Chess): "white" | "black" | "draw" | "ongoing" {
+  if (!game.isGameOver()) return "ongoing";
+  if (game.isCheckmate()) return game.turn() === "w" ? "black" : "white";
+  return "draw"; // stalemate, repetition, insufficient material, 50-move rule
+}
+
+function getGameOverLabel(game: import("chess.js").Chess): string {
+  if (game.isCheckmate()) return "Checkmate";
+  if (game.isStalemate()) return "Stalemate";
+  if (game.isThreefoldRepetition()) return "Draw by repetition";
+  if (game.isInsufficientMaterial()) return "Draw — insufficient material";
+  if (game.isDraw()) return "Draw";
+  return "Game over";
+}
+
 function PlayPage() {
   const { game, fen, history, move, moveSan, undo, reset, exportPgn, isCheck, isGameOver, turn } = useChessGame();
   const [overOpen, setOverOpen] = useState(false);
   const { activate, isActive } = useChessVoice({ game, onMove: (san) => moveSan(san) });
+  const canResign = history.length >= 20; // 10 full moves = 20 plies
 
   useEffect(() => { if (isGameOver) setOverOpen(true); }, [isGameOver]);
 
@@ -76,7 +92,7 @@ function PlayPage() {
           <Button size="sm" variant="outline" onClick={undo}><Undo2 className="h-4 w-4 mr-1.5" />Undo</Button>
           <Button size="sm" variant="outline" onClick={async () => {
             try {
-              await saveGame(exportPgn(), isGameOver ? (turn === 'white' ? 'black' : 'white') : 'ongoing');
+              await saveGame(exportPgn(), getGameResult(game));
               toast.success('Game saved');
             } catch (e) {
               console.error(e);
@@ -92,7 +108,28 @@ function PlayPage() {
           }}>
             <Download className="h-4 w-4 mr-1.5" />Export PGN
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => { reset(); toast("Resigned"); }}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-disabled={!canResign}
+            className={!canResign ? "opacity-50" : undefined}
+            onClick={async () => {
+              if (!canResign) {
+                toast("Resign not available before 10 full moves");
+                return;
+              }
+
+              const pgn = exportPgn();
+              try {
+                await saveGame(pgn, turn === "white" ? "black" : "white");
+                toast("Game saved.");
+              } catch {
+                toast("Resigned");
+              }
+              reset();
+              setOverOpen(false);
+            }}
+          >
             <Flag className="h-4 w-4 mr-1.5" />Resign
           </Button>
         </div>
@@ -125,13 +162,11 @@ function PlayPage() {
             ))}
           </ul>
         </Card>
-
-        <button hidden onClick={() => moveSan("a1")}>noop</button>
       </div>
 
       <GameOverDialog
         open={overOpen}
-        result={isCheck ? "Checkmate" : "Game over"}
+        result={getGameOverLabel(game)}
         onClose={() => setOverOpen(false)}
         onNew={() => { reset(); setOverOpen(false); }}
       />

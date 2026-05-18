@@ -1,48 +1,47 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Chess } from "chess.js";
 
 export function useChessGame() {
-  const [game, setGame] = useState(() => new Chess());
+  const gameRef = useRef<Chess>(new Chess());
+  const [, setRevision] = useState(0);
 
-  const sync = useCallback((g: Chess) => {
-    setGame(new Chess(g.fen()));
-  }, []);
+  const bump = useCallback(() => setRevision((r) => r + 1), []);
 
   const move = useCallback((from: string, to: string, promotion = "q") => {
     try {
-      const next = new Chess(game.fen());
-      const m = next.move({ from, to, promotion });
+      const m = gameRef.current.move({ from, to, promotion });
       if (!m) return false;
-      setGame(next);
+      bump();
       return true;
     } catch {
       return false;
     }
-  }, [game]);
+  }, [bump]);
 
   const moveSan = useCallback((san: string) => {
     try {
-      const next = new Chess(game.fen());
-      const m = next.move(san);
+      const m = gameRef.current.move(san);
       if (!m) return false;
-      setGame(next);
+      bump();
       return true;
     } catch {
       return false;
     }
-  }, [game]);
+  }, [bump]);
 
   const undo = useCallback(() => {
-    const next = new Chess(game.fen());
-    next.undo();
-    setGame(next);
-  }, [game]);
+    gameRef.current.undo();
+    bump();
+  }, [bump]);
 
   const reset = useCallback(() => {
-    setGame(new Chess());
-  }, []);
+    gameRef.current.reset();
+    bump();
+  }, [bump]);
 
-  const exportPgn = useCallback(() => game.pgn(), [game]);
+  const exportPgn = useCallback(() => gameRef.current.pgn(), []);
+
+  const game = gameRef.current;
 
   return {
     game,

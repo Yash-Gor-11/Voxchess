@@ -5,7 +5,7 @@ import { useVoiceStore } from "@/stores/voiceStore";
 import { isSpeechSupported, startRecognition, type RecognitionHandle } from "@/lib/voice/speechRecognition";
 import { applyChessVoice } from "@/lib/voice/chessVoiceHandler";
 
-interface Opts { game: Chess; onMove: (san: string) => void; }
+interface Opts { game: Chess; onMove: (san: string) => boolean; }
 
 export function useChessVoice({ game, onMove }: Opts) {
   const handleRef = useRef<RecognitionHandle | null>(null);
@@ -22,7 +22,17 @@ export function useChessVoice({ game, onMove }: Opts) {
         setTranscript(t);
         if (!isFinal) return;
         const r = applyChessVoice(game, t);
-        if (r.ok && r.san) { onMove(r.san); setStatus("success"); setResult({ ok: true, message: `Played ${r.san}` }); }
+        if (r.ok && r.san) {
+          const applied = onMove(r.san);
+          if (applied) {
+            setStatus("success");
+            setResult({ ok: true, message: `Played ${r.san}` });
+          } else {
+            setStatus("error");
+            setResult({ ok: false, message: `Could not play ${r.san}` });
+            toast.error(`Could not play ${r.san}`);
+          }
+        }
         else { setStatus("error"); setResult({ ok: false, message: r.message }); toast.error(r.message ?? "Couldn't play move"); }
         setTimeout(() => { setActive(null); setStatus("idle"); }, 1500);
       },

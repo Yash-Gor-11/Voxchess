@@ -17,5 +17,5 @@ export function countMovesFromPgn(pgn: string): number {
       !["*", "1-0", "0-1", "1/2-1/2"].includes(t) &&
       !/^[0-9]+$/.test(t)
     );
-  return Math.floor(tokens.length / 2);
+  return Math.ceil(tokens.length / 2);
 }

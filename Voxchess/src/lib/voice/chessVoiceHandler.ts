@@ -1,4 +1,5 @@
 import type { Chess } from "chess.js";
+import { Chess as ChessClass } from "chess.js";
 import type { MoveResult } from "@/types/chess";
 
 // Mock parser: handles a handful of phrases. Real parser comes later.
@@ -44,9 +45,14 @@ export function parseChessPhrase(transcript: string): string | null {
 export function applyChessVoice(game: Chess, transcript: string): MoveResult {
   const san = parseChessPhrase(transcript);
   if (!san) return { ok: false, message: `Couldn't parse "${transcript}"` };
+  
   try {
-    const move = game.move(san);
+    // Validate against a clone so we don't mutate the live game
+    const tempGame = new ChessClass(game.fen());
+    const move = tempGame.move(san);
     if (!move) return { ok: false, message: `Illegal move: ${san}` };
+    
+    // Return the validated SAN for the hook to apply via the proper state flow
     return { ok: true, san: move.san };
   } catch {
     return { ok: false, message: `Illegal move: ${san}` };
