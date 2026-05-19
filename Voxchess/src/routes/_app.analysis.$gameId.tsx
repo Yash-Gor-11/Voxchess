@@ -90,7 +90,7 @@ function renderMoveTree(
 function AnalysisPage() {
   const { gameId } = Route.useParams();
   const navigate = useNavigate();
-  const { evaluation, evaluate } = useStockfish();
+  const { evaluation, evaluate, engineError } = useStockfish();
   const { setActive, setStatus, setTranscript, setResult } = useVoiceStore();
   const [revision, setRevision] = useState(0);
   const [tree, setTree] = useState<AnalysisTree | null>(null);
@@ -153,7 +153,7 @@ function AnalysisPage() {
       setArrows(currentNode.arrows);
       setHighlights(currentNode.highlights);
     }
-  }, [currentNode]);
+  }, [currentNode, evaluate]);
 
   const goToNode = useCallback((node: TreeNode) => {
     if (!treeRef.current) return;
@@ -193,24 +193,24 @@ function AnalysisPage() {
   }, []);
 
   // Drag and drop to create variations
-function handlePieceDrop(from: string, to: string): boolean {
-  if (!treeRef.current || !currentNode) return false;
+  function handlePieceDrop(from: string, to: string): boolean {
+    if (!treeRef.current || !currentNode) return false;
 
-  // Detect pawn promotion
-  const chess = new Chess(currentNode.fen);
-  const piece = chess.get(from as any);
-  const isPromotion =
-    piece?.type === "p" &&
-    ((piece.color === "w" && to[1] === "8") ||
-      (piece.color === "b" && to[1] === "1"));
+    // Detect pawn promotion
+    const chess = new Chess(currentNode.fen);
+    const piece = chess.get(from as Parameters<typeof chess.get>[0]);
+    const isPromotion =
+      piece?.type === "p" &&
+      ((piece.color === "w" && to[1] === "8") ||
+        (piece.color === "b" && to[1] === "1"));
 
-  const uci = isPromotion ? `${from}${to}q` : `${from}${to}`;
-  const node = treeRef.current.makeMove(uci);
-  if (!node) { toast.error("Illegal move"); return false; }
-  setRevision((r) => r + 1);
-  setCurrentNode({ ...node });
-  return true;
-}
+    const uci = isPromotion ? `${from}${to}q` : `${from}${to}`;
+    const node = treeRef.current.makeMove(uci);
+    if (!node) { toast.error("Illegal move"); return false; }
+    setRevision((r) => r + 1);
+    setCurrentNode({ ...node });
+    return true;
+  }
 
   // Arrow drawing — right click
   function handleSquareRightClick(square: string) {
@@ -295,7 +295,7 @@ function handlePieceDrop(from: string, to: string): boolean {
         setStatus("error");
       },
     });
-  }, [isListening]);
+  }, [isListening, setActive, setStatus, setTranscript, setResult, first, last, prev, next, backToMainLine]);
 
   function handleVoiceCommand(t: string) {
     let normalized = t;
@@ -396,7 +396,7 @@ function handlePieceDrop(from: string, to: string): boolean {
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_300px] gap-4">
 
         {/* Eval bar */}
-        <div className="flex justify-center lg:justify-start">
+        <div className="flex justify-center lg:justify-start lg:items-stretch">
           <EvalBar evaluation={evaluation} />
         </div>
 
@@ -463,7 +463,7 @@ function handlePieceDrop(from: string, to: string): boolean {
           {/* Engine eval */}
           <Card className="p-4">
             <div className="text-xs font-medium uppercase tracking-wider
-              text-muted-foreground mb-3">Engine</div>
+    text-muted-foreground mb-3">Engine</div>
             {evaluation ? (
               <div className="space-y-2">
                 {evaluation.bestMoves.map((m, i) => {
@@ -477,16 +477,16 @@ function handlePieceDrop(from: string, to: string): boolean {
                     if (result) san = result.san;
                   } catch { /* keep uci */ }
 
-                  const scoreLabel = m.score >= 10000
-                    ? `M${Math.abs(evaluation.mate ?? 0)}`
+                  const scoreLabel = m.mate !== null
+                    ? `${m.mate > 0 ? "+" : "-"}M${Math.abs(m.mate)}`
                     : `${m.score >= 0 ? "+" : ""}${(m.score / 100).toFixed(1)}`;
 
                   return (
                     <div key={i} className="flex items-center justify-between
-                      text-sm py-1 border-b border-border/30 last:border-0">
+            text-sm py-1 border-b border-border/30 last:border-0">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-[10px] w-5
-                          h-5 p-0 flex items-center justify-center">
+                h-5 p-0 flex items-center justify-center">
                           {i + 1}
                         </Badge>
                         <span className="font-mono">{san}</span>
@@ -503,6 +503,8 @@ function handlePieceDrop(from: string, to: string): boolean {
                   );
                 })}
               </div>
+            ) : engineError ? (
+              <div className="text-xs text-destructive">Engine failed to load</div>
             ) : (
               <div className="text-xs text-muted-foreground">Analysing…</div>
             )}

@@ -32,14 +32,19 @@ export function EvalBar({ evaluation, orientation = "white" }: Props) {
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className="relative w-6 h-64 rounded overflow-hidden border border-border/40 flex flex-col">
+      <div className="relative w-6 h-full min-h-[320px] max-h-[560px] rounded overflow-hidden border border-border/40 flex flex-col">        <div
+        className="transition-all duration-500"
+        style={{
+          height: `${topPercent}%`,
+          backgroundColor: orientation === "white" ? "#1a1a1a" : "#f0f0f0",
+        }}
+      />
         <div
-          className="bg-foreground/80 transition-all duration-500"
-          style={{ height: `${topPercent}%` }}
-        />
-        <div
-          className="bg-background border-t border-border/20 transition-all duration-500"
-          style={{ height: `${bottomPercent}%` }}
+          className="transition-all duration-500"
+          style={{
+            height: `${bottomPercent}%`,
+            backgroundColor: orientation === "white" ? "#f0f0f0" : "#1a1a1a",
+          }}
         />
       </div>
       <div className={cn(
