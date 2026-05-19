@@ -33,12 +33,66 @@ const NUMBER_WORDS: Record<string, number> = {
   seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
 };
 
+// Add this function above AnalysisPage, or just before the return statement
+function renderMoveTree(
+  nodes: TreeNode[],
+  currentNodeId: string,
+  goToNode: (n: TreeNode) => void,
+  depth = 0
+): React.ReactNode {
+  return nodes.map((node) => {
+    const moveNum = Math.ceil(node.plyIndex / 2);
+    const isWhite = node.plyIndex % 2 === 1;
+    const isActive = currentNodeId === node.id;
+    const isVariation = !node.isMainLine;
+
+    const moveButton = (
+      <button
+        key={node.id}
+        onClick={() => goToNode(node)}
+        className={`px-1 py-0.5 rounded hover:bg-muted transition-colors
+          ${isVariation ? "italic text-muted-foreground" : ""}
+          ${isActive
+            ? isVariation
+              ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold"
+              : "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+            : ""
+          }`}
+      >
+        {isWhite && (
+          <span className="text-muted-foreground mr-0.5 not-italic">
+            {moveNum}.
+          </span>
+        )}
+        {node.san}
+      </button>
+    );
+
+    const mainChild = node.children.find((c) => c.isMainLine) ?? node.children[0];
+    const varChildren = node.children.slice(1);
+
+    return (
+      <span key={node.id}>
+        {moveButton}
+        {/* Render variation branches inline in parens before continuing main line */}
+        {varChildren.map((varNode) => (
+          <span key={varNode.id} className="text-muted-foreground">
+            {" ("}
+            {renderMoveTree([varNode], currentNodeId, goToNode, depth + 1)}
+            {")"}
+          </span>
+        ))}
+        {mainChild && renderMoveTree([mainChild], currentNodeId, goToNode, depth)}
+      </span>
+    );
+  });
+}
 function AnalysisPage() {
   const { gameId } = Route.useParams();
   const navigate = useNavigate();
   const { evaluation, evaluate } = useStockfish();
   const { setActive, setStatus, setTranscript, setResult } = useVoiceStore();
-
+  const [revision, setRevision] = useState(0);
   const [tree, setTree] = useState<AnalysisTree | null>(null);
   const [currentNode, setCurrentNode] = useState<TreeNode | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,20 +193,35 @@ function AnalysisPage() {
   }, []);
 
   // Drag and drop to create variations
-  function handlePieceDrop(from: string, to: string): boolean {
-    if (!treeRef.current) return false;
-    const node = treeRef.current.makeMove(`${from}${to}`);
-    if (!node) { toast.error("Illegal move"); return false; }
-    setTree({ ...treeRef.current } as any);
-    setCurrentNode({ ...node });
-    return true;
-  }
+function handlePieceDrop(from: string, to: string): boolean {
+  if (!treeRef.current || !currentNode) return false;
+
+  // Detect pawn promotion
+  const chess = new Chess(currentNode.fen);
+  const piece = chess.get(from as any);
+  const isPromotion =
+    piece?.type === "p" &&
+    ((piece.color === "w" && to[1] === "8") ||
+      (piece.color === "b" && to[1] === "1"));
+
+  const uci = isPromotion ? `${from}${to}q` : `${from}${to}`;
+  const node = treeRef.current.makeMove(uci);
+  if (!node) { toast.error("Illegal move"); return false; }
+  setRevision((r) => r + 1);
+  setCurrentNode({ ...node });
+  return true;
+}
 
   // Arrow drawing — right click
   function handleSquareRightClick(square: string) {
-    if (!rightClickFrom) {
-      setRightClickFrom(square);
-      // Highlight on right click
+    setRightClickFrom(square);
+  }
+
+  function handleMouseUp(square: string) {
+    if (!rightClickFrom) return;
+
+    if (rightClickFrom === square) {
+      // Same square — toggle highlight
       setHighlights((prev) => {
         const next = prev.includes(square)
           ? prev.filter((s) => s !== square)
@@ -160,12 +229,8 @@ function AnalysisPage() {
         treeRef.current?.setHighlights(next);
         return next;
       });
-    }
-  }
-
-  function handleMouseUp(square: string) {
-    if (rightClickFrom && rightClickFrom !== square) {
-      // Draw arrow from rightClickFrom to square
+    } else {
+      // Different square — toggle arrow
       setArrows((prev) => {
         const exists = prev.find((a) => a.from === rightClickFrom && a.to === square);
         const next = exists
@@ -174,8 +239,8 @@ function AnalysisPage() {
         treeRef.current?.setArrows(next);
         return next;
       });
-      setHighlights((prev) => prev.filter((s) => s !== rightClickFrom));
     }
+
     setRightClickFrom(null);
   }
 
@@ -340,6 +405,13 @@ function AnalysisPage() {
           <div
             ref={boardContainerRef}
             className="relative w-full max-w-[560px] mx-auto aspect-square"
+            onMouseUp={(e) => {
+              // Find which square the mouse was released over
+              const el = document.elementFromPoint(e.clientX, e.clientY);
+              const square = el?.closest("[data-square]")?.getAttribute("data-square");
+              if (square) handleMouseUp(square);
+              else setRightClickFrom(null);
+            }}
           >
             <Chessboard
               options={{
@@ -420,10 +492,10 @@ function AnalysisPage() {
                         <span className="font-mono">{san}</span>
                       </div>
                       <span className={`font-mono text-xs font-semibold ${m.score > 0
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : m.score < 0
-                            ? "text-destructive"
-                            : "text-muted-foreground"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : m.score < 0
+                          ? "text-destructive"
+                          : "text-muted-foreground"
                         }`}>
                         {scoreLabel}
                       </span>
@@ -441,46 +513,15 @@ function AnalysisPage() {
             <div className="text-xs font-medium uppercase tracking-wider
               text-muted-foreground mb-3">Moves</div>
             <ScrollArea className="h-48">
-              <div className="space-y-0.5 font-mono text-xs pr-2">
-                {mainLine.slice(1).map((node, i) => {
-                  const moveNum = Math.ceil((i + 1) / 2);
-                  const isWhite = (i + 1) % 2 === 1;
-                  const isActive = currentNode.id === node.id;
-
-                  return (
-                    <span key={node.id}>
-                      {isWhite && (
-                        <span className="text-muted-foreground mr-1">
-                          {moveNum}.
-                        </span>
-                      )}
-                      <button
-                        onClick={() => goToNode(node)}
-                        className={`px-1 py-0.5 rounded hover:bg-muted
-                          transition-colors ${isActive
-                            ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-                            : ""}`}
-                      >
-                        {node.san}
-                      </button>
-                      {/* Show variation branches */}
-                      {node.parent?.children && node.parent.children.length > 1 &&
-                        node.parent.children.slice(1).map((varNode) => (
-                          <button
-                            key={varNode.id}
-                            onClick={() => goToNode(varNode)}
-                            className={`ml-1 px-1 py-0.5 rounded text-muted-foreground
-                              hover:bg-muted transition-colors italic ${currentNode.id === varNode.id
-                                ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                                : ""}`}
-                          >
-                            ({varNode.san})
-                          </button>
-                        ))
-                      }
-                    </span>
-                  );
-                })}
+              <div className="font-mono text-xs pr-2 leading-6">
+                {tree.root.children.length > 0
+                  ? renderMoveTree(
+                    [tree.root.children[0]],
+                    currentNode.id,
+                    goToNode
+                  )
+                  : <span className="text-muted-foreground">No moves</span>
+                }
               </div>
             </ScrollArea>
           </Card>
