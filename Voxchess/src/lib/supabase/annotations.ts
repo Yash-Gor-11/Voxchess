@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-
+import type { SerializedNode } from "@/lib/chess/analysisEngine";
 export async function saveAnnotations(gameId: string, tree: object) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) throw new Error("Not authenticated");
@@ -33,8 +33,9 @@ export async function getAnnotations(gameId: string) {
   if (!data?.note) return null;
 
   try {
-    return { tree: JSON.parse(data.note) };
+    return { tree: JSON.parse(data.note) as SerializedNode };
   } catch {
     return null;
   }
+  
 }

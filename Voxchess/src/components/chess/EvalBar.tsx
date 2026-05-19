@@ -14,7 +14,7 @@ function scoreToPercent(score: number, mate: number | null): number {
 }
 
 function formatScore(score: number, mate: number | null): string {
-  if (mate !== null) return `M${Math.abs(mate)}`;
+  if (mate !== null) return `${mate > 0 ? "+" : "-"}M${Math.abs(mate)}`;
   const abs = Math.abs(score / 100);
   return (score >= 0 ? "+" : "-") + abs.toFixed(1);
 }
@@ -31,14 +31,15 @@ export function EvalBar({ evaluation, orientation = "white" }: Props) {
   const whiteAdvantage = score >= 0;
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="relative w-6 h-full min-h-[320px] max-h-[560px] rounded overflow-hidden border border-border/40 flex flex-col">        <div
-        className="transition-all duration-500"
-        style={{
-          height: `${topPercent}%`,
-          backgroundColor: orientation === "white" ? "#1a1a1a" : "#f0f0f0",
-        }}
-      />
+    <div className="flex flex-col items-center gap-1 h-full">
+      <div className="relative w-6 h-full min-h-[320px] max-h-[560px] rounded overflow-hidden border border-border/40 flex flex-col">
+        <div
+          className="transition-all duration-500"
+          style={{
+            height: `${topPercent}%`,
+            backgroundColor: orientation === "white" ? "#1a1a1a" : "#f0f0f0",
+          }}
+        />
         <div
           className="transition-all duration-500"
           style={{

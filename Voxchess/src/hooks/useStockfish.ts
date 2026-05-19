@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StockfishEngine, type StockfishEval } from "@/lib/chess/stockfish";
 
 export function useStockfish() {
@@ -17,16 +17,17 @@ export function useStockfish() {
     return () => { engine.destroy(); engineRef.current = null; };
   }, []);
 
-  function evaluate(fen: string) {
-    // Only clear stale eval if FEN actually changed
+  const evaluate = useCallback((fen: string) => {
     if (fen !== lastFenRef.current) {
       lastFenRef.current = fen;
       setEvaluation(null);
     }
     engineRef.current?.evaluate(fen);
-  }
+  }, []); // stable — only touches refs
 
-  function stop() { engineRef.current?.stop(); }
+  const stop = useCallback(() => {
+    engineRef.current?.stop();
+  }, []);
 
   return { evaluation, evaluate, stop, engineError };
 }

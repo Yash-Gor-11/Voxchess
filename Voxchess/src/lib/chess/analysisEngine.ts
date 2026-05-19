@@ -13,6 +13,17 @@ export interface TreeNode {
     plyIndex: number;
 }
 
+export interface SerializedNode {
+    id: string;
+    fen: string;
+    move: string | null;
+    san: string | null;
+    arrows: Array<{ from: string; to: string }>;
+    highlights: string[];
+    isMainLine: boolean;
+    plyIndex: number;
+    children: SerializedNode[];
+}
 function generateId() {
     return Math.random().toString(36).slice(2, 9);
 }
@@ -191,8 +202,8 @@ export class AnalysisTree {
         return path;
     }
 
-    serialize(): object {
-        const serializeNode = (node: TreeNode): object => ({
+    serialize(): SerializedNode {
+        const serializeNode = (node: TreeNode): SerializedNode => ({
             id: node.id,
             fen: node.fen,
             move: node.move,
@@ -206,7 +217,7 @@ export class AnalysisTree {
         return serializeNode(this.root);
     }
 
-    static deserialize(data: any, parent: TreeNode | null = null): TreeNode {
+    static deserialize(data: SerializedNode, parent: TreeNode | null = null): TreeNode {
         const node: TreeNode = {
             id: data.id,
             fen: data.fen,
@@ -219,9 +230,9 @@ export class AnalysisTree {
             isMainLine: data.isMainLine,
             plyIndex: data.plyIndex,
         };
-        node.children = (data.children ?? []).map((c: any) =>
+        node.children = (data.children ?? []).map((c) =>
             AnalysisTree.deserialize(c, node)
         );
-        return node as TreeNode & { children: TreeNode[] };
+        return node;
     }
 }
