@@ -15,14 +15,21 @@ export const Route = createFileRoute("/_app/saved-games")({
 
 function SavedGamesPage() {
   const navigate = useNavigate();
-  const [games, setGames] = useState<any[]>([]);
+  const [games, setGames] = useState<Awaited<ReturnType<typeof getGames>>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getGames().then((data) => {
-      setGames(data);
-      setLoading(false);
-    });
+    async function load() {
+      try {
+        const data = await getGames();
+        setGames(data);
+      } catch {
+        toast.error("Could not load saved games");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   async function handleDelete(id: string) {

@@ -8,6 +8,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getGames } from "@/lib/supabase/games";
 import { supabase } from "@/integrations/supabase/client";
 import { countMovesFromPgn } from "@/lib/utils";
+import { toast } from "sonner";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+import type { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_app/profile")({
   head: () => ({ meta: [{ title: "Profile — VoxChess" }] }),
@@ -15,29 +18,36 @@ export const Route = createFileRoute("/_app/profile")({
 });
 
 function ProfilePage() {
-  const [games, setGames] = useState<any[]>([]);
-  const [user, setUser] = useState<any>(null);
-  const [dbUser, setDbUser] = useState<any>(null);
+  const [games, setGames] = useState<Awaited<ReturnType<typeof getGames>>>([]);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [dbUser, setDbUser] = useState<Tables<"users"> | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+        if (authError || !user) return;
+        setUser(user);
 
-      if (user) {
-        const { data } = await supabase
+        const { data: dbData, error: dbError } = await supabase
           .from("users")
           .select("*")
           .eq("id", user.id)
           .single();
-        setDbUser(data);
-      }
+        if (!dbError) setDbUser(dbData);
 
-      const g = await getGames();
-      setGames(g);
-      setLoading(false);
+        const g = await getGames();
+        setGames(g);
+      } catch {
+        toast.error("Could not load profile");
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, []);

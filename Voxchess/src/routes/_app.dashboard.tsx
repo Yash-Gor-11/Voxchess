@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getGames } from "@/lib/supabase/games";
 import { countMovesFromPgn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — VoxChess" }] }),
@@ -15,14 +16,21 @@ export const Route = createFileRoute("/_app/dashboard")({
 
 function DashboardPage() {
   const navigate = useNavigate();
-  const [games, setGames] = useState<any[]>([]);
+  const [games, setGames] = useState<Awaited<ReturnType<typeof getGames>>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getGames().then((data) => {
-      setGames(data);
-      setLoading(false);
-    });
+    async function load() {
+      try {
+        const data = await getGames();
+        setGames(data);
+      } catch {
+        toast.error("Could not load games");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   const wins = games.filter((g) => g.result === "white").length;

@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { Chessboard } from "react-chessboard";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — VoxChess" }] }),
@@ -47,55 +48,85 @@ function SettingsPage() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from("users")
-        .select("display_name, preferences")
-        .eq("id", user.id)
-        .single();
-      if (data) {
-        setDisplayName(data.display_name ?? "");
-        const prefs = data.preferences as any;
-        if (prefs?.boardTheme !== undefined) setBoardTheme(prefs.boardTheme);
-        if (prefs?.boardSize !== undefined) setBoardSize(prefs.boardSize);
-        if (prefs?.navKey) setNavKey(prefs.navKey);
-        if (prefs?.chessKey) setChessKey(prefs.chessKey);
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+        if (authError || !user) return;
+        const { data, error } = await supabase
+          .from("users")
+          .select("display_name, preferences")
+          .eq("id", user.id)
+          .single();
+        if (error) {
+          toast.error("Could not load settings");
+          return;
+        }
+        if (data) {
+          setDisplayName(data.display_name ?? "");
+          const prefs = data.preferences as {
+            boardTheme?: number;
+            boardSize?: number;
+            navKey?: string;
+            chessKey?: string;
+          } | null;
+          if (prefs?.boardTheme !== undefined) setBoardTheme(prefs.boardTheme);
+          if (prefs?.boardSize !== undefined) setBoardSize(prefs.boardSize);
+          if (prefs?.navKey) setNavKey(prefs.navKey);
+          if (prefs?.chessKey) setChessKey(prefs.chessKey);
+        }
+      } catch {
+        toast.error("Could not load settings");
       }
     }
     load();
   }, []);
 
-  async function savePreferences(patch: Record<string, any>) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data } = await supabase
-      .from("users")
-      .select("preferences")
-      .eq("id", user.id)
-      .single();
-    const current = (data?.preferences as any) ?? {};
-    await supabase
-      .from("users")
-      .update({ preferences: { ...current, ...patch } })
-      .eq("id", user.id);
+  async function savePreferences(patch: Record<string, unknown>) {
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) return;
+      const { data, error: fetchError } = await supabase
+        .from("users")
+        .select("preferences")
+        .eq("id", user.id)
+        .single();
+      if (fetchError) throw fetchError;
+      const current = (data?.preferences as Record<string, unknown>) ?? {};
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ preferences: { ...current, ...patch } as Json })
+        .eq("id", user.id);
+      if (updateError) throw updateError;
+    } catch {
+      toast.error("Could not save preference");
+    }
   }
 
   async function handleSaveName() {
     if (!displayName.trim()) return;
     setSavingName(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error();
-      await supabase
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error("Not authenticated");
+      const { error } = await supabase
         .from("users")
         .update({ display_name: displayName.trim() })
         .eq("id", user.id);
+      if (error) throw error;
       toast.success("Display name updated");
     } catch {
       toast.error("Could not update name");
+    } finally {
+      setSavingName(false);
     }
-    setSavingName(false);
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -276,10 +307,18 @@ function SettingsPage() {
             variant="outline"
             size="sm"
             onClick={async () => {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user?.email) return;
-              await supabase.auth.resetPasswordForEmail(user.email);
-              toast.success("Password reset email sent");
+              try {
+                const {
+                  data: { user },
+                  error: authError,
+                } = await supabase.auth.getUser();
+                if (authError || !user?.email) return;
+                const { error } = await supabase.auth.resetPasswordForEmail(user.email);
+                if (error) throw error;
+                toast.success("Password reset email sent");
+              } catch {
+                toast.error("Could not send reset email");
+              }
             }}
           >
             Send reset email
