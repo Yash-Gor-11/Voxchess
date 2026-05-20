@@ -11,7 +11,7 @@ export function BoardWrapper({ fen, onPieceDrop }: Props) {
   const theme = BOARD_THEMES[boardThemeIndex] ?? BOARD_THEMES[0];
 
   return (
-    <div className="relative mx-auto aspect-square" style={{ width: boardSize }}>
+    <div className="relative mx-auto aspect-square" style={{ width: `min(${boardSize}px, 100%)` }}>
       <Chessboard
         options={{
           position: fen,

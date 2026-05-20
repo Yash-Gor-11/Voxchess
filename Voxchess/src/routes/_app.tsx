@@ -65,13 +65,13 @@ function AppLayout() {
     );
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="h-screen flex bg-background">
       <AppSidebar
         email={user?.email ?? undefined}
         mobileNavOpen={mobileNavOpen}
         setMobileNavOpen={setMobileNavOpen}
       />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         <AppHeader
           email={user?.email ?? undefined}
           onMenuClick={() => setMobileNavOpen(true)}
@@ -82,7 +82,7 @@ function AppLayout() {
             Voice input requires Chrome or Edge. You can still play using drag and drop.
           </Banner>
         )}
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-hidden min-h-0">
           <Outlet />
         </main>
       </div>
