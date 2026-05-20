@@ -30,7 +30,7 @@ export function EvalBar({ evaluation, orientation = "white" }: Props) {
   const scoreLabel = formatScore(score, mate);
   const whiteAdvantage = score >= 0;
 
-   return (
+  return (
     <div className="flex flex-col items-center gap-1" style={{ height: "100%" }}>
       <div
         className="relative w-5 rounded overflow-hidden border border-border/40 flex flex-col"
@@ -51,17 +51,15 @@ export function EvalBar({ evaluation, orientation = "white" }: Props) {
           }}
         />
       </div>
-      <div className={cn(
-        "text-xs font-mono font-semibold",
-        whiteAdvantage ? "text-foreground" : "text-muted-foreground"
-      )}>
+      <div
+        className={cn(
+          "text-xs font-mono font-semibold",
+          whiteAdvantage ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
         {evaluation ? scoreLabel : "—"}
       </div>
-      {evaluation && (
-        <div className="text-[10px] text-muted-foreground">
-          d{evaluation.depth}
-        </div>
-      )}
+      {evaluation && <div className="text-[10px] text-muted-foreground">d{evaluation.depth}</div>}
     </div>
   );
 }

@@ -47,19 +47,19 @@ export function useNavVoice() {
           setResult({ ok: false, message: cmd.message });
           toast.error(cmd.message ?? "Unknown command");
         } else if (cmd.action === "signout") {
-          // FIX (High): await signOut so the session is cleared before
-          // navigating. Without await the redirect races the Supabase call
-          // and _app.tsx beforeLoad may still see an active session.
           setStatus("success");
           setResult({ ok: true, message: "Signing out…" });
           await supabase.auth.signOut();
           navigate({ to: "/auth/login" });
         } else if (cmd.action === "newgame") {
-          // FIX (Medium): "new game" command was parsed but never handled.
           navigate({ to: "/play" });
           setStatus("success");
           setResult({ ok: true, message: "Starting new game" });
         } else if (cmd.to) {
+          // cmd.to is a runtime-validated route string from navVoiceHandler.
+          // TanStack Router's navigate expects its own ValidRoutes generic
+          // which can't be satisfied with a plain string — suppress here.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           navigate({ to: cmd.to as any });
           setStatus("success");
           setResult({ ok: true, message: `Going to ${cmd.to}` });

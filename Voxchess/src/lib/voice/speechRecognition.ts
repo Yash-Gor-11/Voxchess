@@ -1,5 +1,9 @@
 // Web Speech API wrapper. Falls back gracefully on unsupported browsers.
+// The Web Speech API has no official TypeScript type definitions, so `any`
+// is unavoidable when interfacing with SpeechRecognition and its events.
+// Each usage is suppressed individually rather than disabling the rule globally.
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SR = typeof window extends { SpeechRecognition: infer T } ? T : any;
 
 export const isSpeechSupported = (): boolean =>
@@ -19,6 +23,7 @@ export interface RecognitionHandle {
 
 export function startRecognition(cb: RecognitionCallbacks): RecognitionHandle | null {
   if (!isSpeechSupported()) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Ctor: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const rec = new Ctor();
   rec.lang = "en-US";
@@ -28,7 +33,9 @@ export function startRecognition(cb: RecognitionCallbacks): RecognitionHandle | 
 
   rec.onstart = () => cb.onStart?.();
   rec.onend = () => cb.onEnd?.();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rec.onerror = (e: any) => cb.onError?.(e?.error ?? "unknown");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rec.onresult = (e: any) => {
     let interim = "";
     let final = "";

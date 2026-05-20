@@ -8,7 +8,7 @@ interface Props {
   onActivate: () => void;
   isActive: boolean;
   enabled?: boolean;
-  size?: "sm" |"md" | "lg";
+  size?: "sm" | "md" | "lg";
 }
 
 function Knight(props: React.SVGProps<SVGSVGElement>) {

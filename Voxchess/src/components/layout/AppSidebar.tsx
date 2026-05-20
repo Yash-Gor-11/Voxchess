@@ -59,7 +59,8 @@ export function AppSidebar({ email }: { email?: string }) {
             enabled={!!activateChessCallback}
           />
           <div className="text-[10px] text-muted-foreground leading-relaxed">
-            Space · "next" · "previous"<br />
+            Space · "next" · "previous"
+            <br />
             "go to move 5" · "main line"
           </div>
           <TranscriptDisplay mode="chess" />

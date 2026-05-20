@@ -6,7 +6,19 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi"] },
+  {
+    // dist, build output, vinxi internals, and shadcn/ui generated components
+    // (ui files export constants alongside components by design — the
+    // react-refresh warning is a false positive for generated code we don't own)
+    ignores: [
+      "dist",
+      ".output",
+      ".vinxi",
+      "src/components/ui/*",
+      "public/stockfish.wasm",
+      "public/stockfish.wasm.js",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

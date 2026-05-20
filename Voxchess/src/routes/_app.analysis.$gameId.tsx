@@ -54,7 +54,6 @@ const NUMBER_WORDS: Record<string, number> = {
   twenty: 20,
 };
 
-// Add this function above AnalysisPage, or just before the return statement
 function renderMoveTree(
   nodes: TreeNode[],
   currentNodeId: string,
@@ -73,11 +72,12 @@ function renderMoveTree(
         onClick={() => goToNode(node)}
         className={`px-1 py-0.5 rounded hover:bg-muted transition-colors
           ${isVariation ? "italic text-muted-foreground" : ""}
-          ${isActive
-            ? isVariation
-              ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold"
-              : "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-            : ""
+          ${
+            isActive
+              ? isVariation
+                ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold"
+                : "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+              : ""
           }`}
       >
         {isWhite && <span className="text-muted-foreground mr-0.5 not-italic">{moveNum}.</span>}
@@ -91,7 +91,6 @@ function renderMoveTree(
     return (
       <span key={node.id}>
         {moveButton}
-        {/* Render variation branches inline in parens before continuing main line */}
         {varChildren.map((varNode) => (
           <span key={varNode.id} className="text-muted-foreground">
             {" ("}
@@ -104,6 +103,7 @@ function renderMoveTree(
     );
   });
 }
+
 function AnalysisPage() {
   const { gameId } = Route.useParams();
   const navigate = useNavigate();
@@ -123,12 +123,10 @@ function AnalysisPage() {
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<AnalysisTree | null>(null);
 
-  // Keep treeRef in sync
   useEffect(() => {
     treeRef.current = tree;
   }, [tree]);
 
-  // Load game and annotations
   useEffect(() => {
     async function load() {
       try {
@@ -149,7 +147,6 @@ function AnalysisPage() {
         setTree(t);
         setCurrentNode(t.root);
 
-        // Load saved annotations
         try {
           const saved = await getAnnotations(gameId);
           if (saved?.tree) {
@@ -170,7 +167,6 @@ function AnalysisPage() {
     load();
   }, [gameId]);
 
-  // Evaluate position when node changes
   useEffect(() => {
     if (currentNode) {
       evaluate(currentNode.fen);
@@ -216,11 +212,140 @@ function AnalysisPage() {
     toast("Back to main line");
   }, []);
 
-  // Drag and drop to create variations
+  // Defined before activateVoice so it can be listed as a stable dependency
+  const handleVoiceCommand = useCallback(
+    (t: string) => {
+      let normalized = t;
+      Object.entries(NUMBER_WORDS).forEach(([word, num]) => {
+        normalized = normalized.replace(new RegExp(`\\b${word}\\b`, "g"), String(num));
+      });
+
+      if (/\b(first|start|beginning)\b/.test(normalized)) {
+        first();
+        setResult({ ok: true, message: "First move" });
+        setStatus("success");
+        return;
+      }
+      if (/\b(last|end|final)\b/.test(normalized)) {
+        last();
+        setResult({ ok: true, message: "Last move" });
+        setStatus("success");
+        return;
+      }
+      if (/\b(back|previous|prev)\b/.test(normalized)) {
+        prev();
+        setResult({ ok: true, message: "Previous" });
+        setStatus("success");
+        return;
+      }
+      if (/\b(next|forward)\b/.test(normalized)) {
+        next();
+        setResult({ ok: true, message: "Next" });
+        setStatus("success");
+        return;
+      }
+      if (/\b(main line|mainline)\b/.test(normalized)) {
+        backToMainLine();
+        setResult({ ok: true, message: "Main line" });
+        setStatus("success");
+        return;
+      }
+
+      const jumpMatch = normalized.match(/(?:go to|jump to|move|goto)\s+(\d+)/);
+      if (jumpMatch) {
+        const moveNum = parseInt(jumpMatch[1]);
+        if (treeRef.current) {
+          treeRef.current.goToMainLinePly(moveNum * 2 - 1);
+          setCurrentNode({ ...treeRef.current.current });
+          setResult({ ok: true, message: `Move ${moveNum}` });
+          setStatus("success");
+        }
+        return;
+      }
+
+      setResult({ ok: false, message: `Not recognised: "${t}"` });
+      setStatus("error");
+    },
+    [first, last, prev, next, backToMainLine, setResult, setStatus],
+  );
+
+  const activateVoice = useCallback(() => {
+    if (!isSpeechSupported()) {
+      toast.error("Voice requires Chrome or Edge");
+      return;
+    }
+    if (isListening) return;
+    setIsListening(true);
+    setActive("chess");
+    setStatus("listening");
+    setTranscript("");
+    setResult(null);
+
+    let resultReceived = false;
+    let handle: { stop: () => void } | null = null;
+
+    handle = startRecognition({
+      onResult: (t, isFinal) => {
+        setTranscript(t);
+        if (!isFinal) return;
+        resultReceived = true;
+        handle?.stop();
+        handleVoiceCommand(t.toLowerCase().trim());
+      },
+      onEnd: () => {
+        setIsListening(false);
+        if (!resultReceived) {
+          setActive(null);
+          setStatus("idle");
+        } else {
+          setTimeout(() => {
+            setActive(null);
+            setStatus("idle");
+          }, 1500);
+        }
+      },
+      onError: () => {
+        setIsListening(false);
+        setActive(null);
+        setStatus("error");
+      },
+    });
+  }, [isListening, handleVoiceCommand, setActive, setStatus, setTranscript, setResult]);
+
+  useEffect(() => {
+    setActivateChessCallback(activateVoice);
+    return () => setActivateChessCallback(null);
+  }, [activateVoice, setActivateChessCallback]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = document.activeElement as HTMLElement | null;
+      const inputFocused =
+        !!el &&
+        (el instanceof HTMLInputElement ||
+          el instanceof HTMLTextAreaElement ||
+          el.isContentEditable);
+      if (inputFocused) return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        prev();
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        next();
+      }
+      if (e.code === "Space") {
+        e.preventDefault();
+        activateVoice();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prev, next, activateVoice]);
+
   function handlePieceDrop(from: string, to: string): boolean {
     if (!treeRef.current || !currentNode) return false;
 
-    // Detect pawn promotion
     const chess = new Chess(currentNode.fen);
     const piece = chess.get(from as Parameters<typeof chess.get>[0]);
     const isPromotion =
@@ -238,7 +363,6 @@ function AnalysisPage() {
     return true;
   }
 
-  // Arrow drawing — right click
   function handleSquareRightClick(square: string) {
     setRightClickFrom(square);
   }
@@ -247,14 +371,12 @@ function AnalysisPage() {
     if (!rightClickFrom) return;
 
     if (rightClickFrom === square) {
-      // Same square — toggle highlight
       setHighlights((prev) => {
         const next = prev.includes(square) ? prev.filter((s) => s !== square) : [...prev, square];
         treeRef.current?.setHighlights(next);
         return next;
       });
     } else {
-      // Different square — toggle arrow
       setArrows((prev) => {
         const exists = prev.find((a) => a.from === rightClickFrom && a.to === square);
         const next = exists
@@ -286,142 +408,6 @@ function AnalysisPage() {
     }
     setSaving(false);
   }
-
-  // Arrow keys + Space
-  const activateVoice = useCallback(() => {
-    if (!isSpeechSupported()) {
-      toast.error("Voice requires Chrome or Edge");
-      return;
-    }
-    if (isListening) return;
-    setIsListening(true);
-    setActive("chess");
-    setStatus("listening");
-    setTranscript("");
-    setResult(null);
-
-    let resultReceived = false;
-    let handle: { stop: () => void } | null = null;
-
-    handle = startRecognition({
-      onResult: (t, isFinal) => {
-        setTranscript(t);
-        if (!isFinal) return;
-        resultReceived = true;
-        handle?.stop();
-        handleVoiceCommand(t.toLowerCase().trim());
-      },
-      onEnd: () => {
-        setIsListening(false);
-        if (!resultReceived) {
-          setActive(null);
-          setStatus("idle");
-        } else
-          setTimeout(() => {
-            setActive(null);
-            setStatus("idle");
-          }, 1500);
-      },
-      onError: () => {
-        setIsListening(false);
-        setActive(null);
-        setStatus("error");
-      },
-    });
-  }, [
-    isListening,
-    setActive,
-    setStatus,
-    setTranscript,
-    setResult,
-    first,
-    last,
-    prev,
-    next,
-    backToMainLine,
-  ]);
-  useEffect(() => {
-  setActivateChessCallback(activateVoice);
-  return () => setActivateChessCallback(null); // cleanup on unmount
-}, [activateVoice, setActivateChessCallback]);
-  function handleVoiceCommand(t: string) {
-    let normalized = t;
-    Object.entries(NUMBER_WORDS).forEach(([word, num]) => {
-      normalized = normalized.replace(new RegExp(`\\b${word}\\b`, "g"), String(num));
-    });
-
-    if (/\b(first|start|beginning)\b/.test(normalized)) {
-      first();
-      setResult({ ok: true, message: "First move" });
-      setStatus("success");
-      return;
-    }
-    if (/\b(last|end|final)\b/.test(normalized)) {
-      last();
-      setResult({ ok: true, message: "Last move" });
-      setStatus("success");
-      return;
-    }
-    if (/\b(back|previous|prev)\b/.test(normalized)) {
-      prev();
-      setResult({ ok: true, message: "Previous" });
-      setStatus("success");
-      return;
-    }
-    if (/\b(next|forward)\b/.test(normalized)) {
-      next();
-      setResult({ ok: true, message: "Next" });
-      setStatus("success");
-      return;
-    }
-    if (/\b(main line|mainline)\b/.test(normalized)) {
-      backToMainLine();
-      setResult({ ok: true, message: "Main line" });
-      setStatus("success");
-      return;
-    }
-
-    const jumpMatch = normalized.match(/(?:go to|jump to|move|goto)\s+(\d+)/);
-    if (jumpMatch) {
-      const moveNum = parseInt(jumpMatch[1]);
-      if (treeRef.current) {
-        treeRef.current.goToMainLinePly((moveNum) * 2 - 1);
-        setCurrentNode({ ...treeRef.current.current });
-        setResult({ ok: true, message: `Move ${moveNum}` });
-        setStatus("success");
-      }
-      return;
-    }
-
-    setResult({ ok: false, message: `Not recognised: "${t}"` });
-    setStatus("error");
-  }
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      const el = document.activeElement as HTMLElement | null;
-      const inputFocused =
-        !!el &&
-        (el instanceof HTMLInputElement ||
-          el instanceof HTMLTextAreaElement ||
-          el.isContentEditable);
-      if (inputFocused) return;
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        prev();
-      }
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        next();
-      }
-      if (e.code === "Space") {
-        e.preventDefault();
-        activateVoice();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [prev, next, activateVoice]);
 
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading game…</div>;
 
@@ -458,18 +444,13 @@ function AnalysisPage() {
         </div>
       </div>
 
-      {/* Outer grid */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
-
-        {/* Board + Eval bar */}
         <Card className="p-3">
           <div className="flex gap-2 items-stretch justify-center">
-            {/* Eval bar */}
             <div className="flex-shrink-0 flex flex-col">
               <EvalBar evaluation={evaluation} />
             </div>
 
-            {/* Board — constrained max width */}
             <div className="w-full max-w-[520px]">
               <div
                 ref={boardContainerRef}
@@ -501,37 +482,52 @@ function AnalysisPage() {
                 />
               </div>
 
-              {/* Controls */}
               <div className="mt-2 flex items-center justify-center gap-2">
-                <Button size="sm" variant="outline" onClick={first}
-                  disabled={currentNode.plyIndex === 0}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={first}
+                  disabled={currentNode.plyIndex === 0}
+                >
                   <ChevronFirst className="h-4 w-4" />
                 </Button>
-                <Button size="sm" variant="outline" onClick={prev}
-                  disabled={currentNode.plyIndex === 0}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={prev}
+                  disabled={currentNode.plyIndex === 0}
+                >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-xs text-muted-foreground font-mono w-20 text-center">
                   {currentNode.plyIndex} / {mainLine.length - 1}
                 </span>
-                <Button size="sm" variant="outline" onClick={next}
-                  disabled={currentNode.children.length === 0}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={next}
+                  disabled={currentNode.children.length === 0}
+                >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button size="sm" variant="outline" onClick={last}
-                  disabled={currentNode.children.length === 0}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={last}
+                  disabled={currentNode.children.length === 0}
+                >
                   <ChevronLast className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           </div>
         </Card>
-        {/* Right panel */}
-<div className="flex flex-col gap-3" style={{ height: "fit-content" }}>
-          {/* Engine eval */}
+
+        <div className="flex flex-col gap-3" style={{ height: "fit-content" }}>
           <Card className="p-4">
-            <div className="text-xs font-medium uppercase tracking-wider
-      text-muted-foreground mb-3">Engine</div>
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+              Engine
+            </div>
             {evaluation ? (
               <div className="space-y-2">
                 {evaluation.bestMoves.map((m, i) => {
@@ -543,28 +539,38 @@ function AnalysisPage() {
                     const promo = m.move.slice(4) || undefined;
                     const result = chess.move({ from, to, promotion: promo });
                     if (result) san = result.san;
-                  } catch { /* keep uci */ }
+                  } catch {
+                    /* keep uci */
+                  }
 
-                  const scoreLabel = m.mate !== null
-                    ? `${m.mate > 0 ? "+" : "-"}M${Math.abs(m.mate)}`
-                    : `${m.score >= 0 ? "+" : ""}${(m.score / 100).toFixed(1)}`;
+                  const scoreLabel =
+                    m.mate !== null
+                      ? `${m.mate > 0 ? "+" : "-"}M${Math.abs(m.mate)}`
+                      : `${m.score >= 0 ? "+" : ""}${(m.score / 100).toFixed(1)}`;
 
                   return (
-                    <div key={i} className="flex items-center justify-between
-              text-sm py-1 border-b border-border/30 last:border-0">
+                    <div
+                      key={i}
+                      className="flex items-center justify-between text-sm py-1 border-b border-border/30 last:border-0"
+                    >
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px] w-5
-                  h-5 p-0 flex items-center justify-center">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] w-5 h-5 p-0 flex items-center justify-center"
+                        >
                           {i + 1}
                         </Badge>
                         <span className="font-mono">{san}</span>
                       </div>
-                      <span className={`font-mono text-xs font-semibold ${m.score > 0
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : m.score < 0
-                            ? "text-destructive"
-                            : "text-muted-foreground"
-                        }`}>
+                      <span
+                        className={`font-mono text-xs font-semibold ${
+                          m.score > 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : m.score < 0
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                        }`}
+                      >
                         {scoreLabel}
                       </span>
                     </div>
@@ -578,82 +584,77 @@ function AnalysisPage() {
             )}
           </Card>
 
-          {/* Move scoresheet — fills remaining height */}
-<Card className="p-4 flex flex-col flex-1">
-    <div className="text-xs font-medium uppercase tracking-wider
-      text-muted-foreground mb-3">Moves</div>
-    <ScrollArea className="h-[350px]">
+          <Card className="p-4 flex flex-col flex-1">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+              Moves
+            </div>
+            <ScrollArea className="h-[350px]">
               <table className="w-full text-xs font-mono">
                 <tbody>
-                  {Array.from(
-                    { length: Math.ceil((mainLine.length - 1) / 2) },
-                    (_, i) => {
-                      const whiteNode = mainLine[i * 2 + 1];
-                      const blackNode = mainLine[i * 2 + 2];
-                      const whiteVars = whiteNode?.parent?.children.slice(1) ?? [];
-                      const blackVars = blackNode?.parent?.children.slice(1) ?? [];
+                  {Array.from({ length: Math.ceil((mainLine.length - 1) / 2) }, (_, i) => {
+                    const whiteNode = mainLine[i * 2 + 1];
+                    const blackNode = mainLine[i * 2 + 2];
+                    const whiteVars = whiteNode?.parent?.children.slice(1) ?? [];
+                    const blackVars = blackNode?.parent?.children.slice(1) ?? [];
 
-                      return (
-                        <Fragment key={i}>
-                          <tr className="border-b border-border/20 last:border-0">
-                            <td className="py-1 pr-2 text-muted-foreground w-8">
-                              {i + 1}.
-                            </td>
-                            <td className="py-1 pr-2 w-[45%]">
-                              {whiteNode && (
-                                <button
-                                  onClick={() => goToNode(whiteNode)}
-                                  className={`px-1.5 py-0.5 rounded w-full text-left
-                            hover:bg-muted transition-colors
-                            ${currentNode.id === whiteNode.id
-                                      ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-                                      : ""}`}
-                                >
-                                  {whiteNode.san}
-                                </button>
-                              )}
-                            </td>
-                            <td className="py-1 w-[45%]">
-                              {blackNode && (
-                                <button
-                                  onClick={() => goToNode(blackNode)}
-                                  className={`px-1.5 py-0.5 rounded w-full text-left
-                            hover:bg-muted transition-colors
-                            ${currentNode.id === blackNode.id
-                                      ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-                                      : ""}`}
-                                >
-                                  {blackNode.san}
-                                </button>
-                              )}
+                    return (
+                      <Fragment key={i}>
+                        <tr className="border-b border-border/20 last:border-0">
+                          <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
+                          <td className="py-1 pr-2 w-[45%]">
+                            {whiteNode && (
+                              <button
+                                onClick={() => goToNode(whiteNode)}
+                                className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${
+                                  currentNode.id === whiteNode.id
+                                    ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+                                    : ""
+                                }`}
+                              >
+                                {whiteNode.san}
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-1 w-[45%]">
+                            {blackNode && (
+                              <button
+                                onClick={() => goToNode(blackNode)}
+                                className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${
+                                  currentNode.id === blackNode.id
+                                    ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+                                    : ""
+                                }`}
+                              >
+                                {blackNode.san}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {(whiteVars.length > 0 || blackVars.length > 0) && (
+                          <tr>
+                            <td colSpan={3} className="py-1 pl-4 pb-2">
+                              <div className="text-muted-foreground italic leading-6">
+                                {whiteVars.map((varNode) => (
+                                  <span key={varNode.id}>
+                                    {"("}
+                                    {renderMoveTree([varNode], currentNode.id, goToNode)}
+                                    {") "}
+                                  </span>
+                                ))}
+                                {blackVars.map((varNode) => (
+                                  <span key={varNode.id}>
+                                    {"("}
+                                    {renderMoveTree([varNode], currentNode.id, goToNode)}
+                                    {") "}
+                                  </span>
+                                ))}
+                              </div>
                             </td>
                           </tr>
-                          {(whiteVars.length > 0 || blackVars.length > 0) && (
-                            <tr>
-                              <td colSpan={3} className="py-1 pl-4 pb-2">
-                                <div className="text-muted-foreground italic leading-6">
-                                  {whiteVars.map((varNode) => (
-                                    <span key={varNode.id}>
-                                      {"("}
-                                      {renderMoveTree([varNode], currentNode.id, goToNode)}
-                                      {") "}
-                                    </span>
-                                  ))}
-                                  {blackVars.map((varNode) => (
-                                    <span key={varNode.id}>
-                                      {"("}
-                                      {renderMoveTree([varNode], currentNode.id, goToNode)}
-                                      {") "}
-                                    </span>
-                                  ))}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    }
-                  )}
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </ScrollArea>
