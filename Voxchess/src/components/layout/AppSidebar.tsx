@@ -15,7 +15,9 @@ export function AppSidebar({ email }: { email?: string }) {
   const loc = useLocation();
   return (
     <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-border/40 bg-card/40">
-      <div className="px-5 py-5"><Logo /></div>
+      <div className="px-5 py-5">
+        <Logo />
+      </div>
       <nav className="flex-1 px-3 space-y-1">
         {items.map((it) => {
           const Icon = it.icon;

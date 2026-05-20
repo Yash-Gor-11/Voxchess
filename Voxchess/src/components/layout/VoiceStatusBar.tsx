@@ -23,9 +23,7 @@ export function VoiceStatusBar() {
         <span className="font-medium text-muted-foreground">
           {activeMode === "nav" ? "Navigating…" : "Listening for move…"}
         </span>
-        {transcript && (
-          <span className="font-mono text-foreground truncate">“{transcript}”</span>
-        )}
+        {transcript && <span className="font-mono text-foreground truncate">“{transcript}”</span>}
       </div>
     </div>
   );

@@ -19,7 +19,9 @@ export function TranscriptDisplay({ mode }: { mode: "nav" | "chess" }) {
     >
       {showLive && <span>“{transcript}”</span>}
       {!showLive && showResult && <span>{lastResult?.message}</span>}
-      {!showLive && !showResult && status === "listening" && <span className="text-muted-foreground">Listening…</span>}
+      {!showLive && !showResult && status === "listening" && (
+        <span className="text-muted-foreground">Listening…</span>
+      )}
     </div>
   );
 }

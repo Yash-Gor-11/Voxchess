@@ -20,7 +20,12 @@ function AppLayout() {
   const { user, loading } = useAuth();
   const supported = typeof window === "undefined" ? true : isSpeechSupported();
 
-  if (loading) return <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">Loading…</div>;
+  if (loading)
+    return (
+      <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    );
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -28,7 +33,11 @@ function AppLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         <AppHeader email={user?.email ?? undefined} />
         <VoiceStatusBar />
-        {!supported && <Banner>Voice input requires Chrome or Edge. You can still play using drag and drop.</Banner>}
+        {!supported && (
+          <Banner>
+            Voice input requires Chrome or Edge. You can still play using drag and drop.
+          </Banner>
+        )}
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>

@@ -11,11 +11,12 @@ export function countMovesFromPgn(pgn: string): number {
   const tokens = movesSection
     .trim()
     .split(/\s+/)
-    .filter((t) =>
-      t.length > 0 &&
-      !t.includes(".") &&
-      !["*", "1-0", "0-1", "1/2-1/2"].includes(t) &&
-      !/^[0-9]+$/.test(t)
+    .filter(
+      (t) =>
+        t.length > 0 &&
+        !t.includes(".") &&
+        !["*", "1-0", "0-1", "1/2-1/2"].includes(t) &&
+        !/^[0-9]+$/.test(t),
     );
   return Math.ceil(tokens.length / 2);
 }

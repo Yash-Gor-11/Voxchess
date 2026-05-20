@@ -19,11 +19,11 @@ export default defineConfig({
             mkdirSync("public", { recursive: true });
             copyFileSync(
               resolve("node_modules/stockfish.js/stockfish.wasm.js"),
-              resolve("public/stockfish.wasm.js")
+              resolve("public/stockfish.wasm.js"),
             );
             copyFileSync(
               resolve("node_modules/stockfish.js/stockfish.wasm"),
-              resolve("public/stockfish.wasm")
+              resolve("public/stockfish.wasm"),
             );
           } catch (e) {
             console.warn("Could not copy stockfish files:", e);

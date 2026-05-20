@@ -50,7 +50,11 @@ export function ChessVoiceButton({ onActivate, isActive, enabled = true, size = 
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          {!supported ? "Voice requires Chrome or Edge" : !enabled ? "Only active during a game" : "Make a move by voice · Press Space"}
+          {!supported
+            ? "Voice requires Chrome or Edge"
+            : !enabled
+              ? "Only active during a game"
+              : "Make a move by voice · Press Space"}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

@@ -55,11 +55,7 @@ function SavedGamesPage() {
         <Card className="p-10 text-center">
           <BookMarked className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">No saved games yet.</p>
-          <Button
-            size="sm"
-            className="mt-4"
-            onClick={() => navigate({ to: "/play" })}
-          >
+          <Button size="sm" className="mt-4" onClick={() => navigate({ to: "/play" })}>
             Play a game
           </Button>
         </Card>
@@ -107,11 +103,7 @@ function SavedGamesPage() {
                   <LineChart className="h-3.5 w-3.5 mr-1.5" />
                   Analyse
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleDelete(g.id)}
-                >
+                <Button size="sm" variant="ghost" onClick={() => handleDelete(g.id)}>
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </Button>
               </div>

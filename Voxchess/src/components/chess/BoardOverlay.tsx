@@ -15,10 +15,10 @@ interface Props {
 function squareToCoords(
   square: string,
   boardSize: number,
-  orientation: "white" | "black"
+  orientation: "white" | "black",
 ): { x: number; y: number } {
   const file = square.charCodeAt(0) - 97; // a=0, h=7
-  const rank = parseInt(square[1]) - 1;   // 1=0, 8=7
+  const rank = parseInt(square[1]) - 1; // 1=0, 8=7
 
   const col = orientation === "white" ? file : 7 - file;
   const row = orientation === "white" ? 7 - rank : rank;
@@ -33,7 +33,7 @@ function squareToCoords(
 function squareToRect(
   square: string,
   boardSize: number,
-  orientation: "white" | "black"
+  orientation: "white" | "black",
 ): { x: number; y: number; size: number } {
   const file = square.charCodeAt(0) - 97;
   const rank = parseInt(square[1]) - 1;
@@ -82,18 +82,8 @@ export function BoardOverlay({ arrows, highlights, boardRef, orientation = "whit
       }}
     >
       <defs>
-        <marker
-          id="arrowhead"
-          markerWidth="4"
-          markerHeight="4"
-          refX="2"
-          refY="2"
-          orient="auto"
-        >
-          <polygon
-            points="0 0, 4 2, 0 4"
-            fill={arrowColor}
-          />
+        <marker id="arrowhead" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
+          <polygon points="0 0, 4 2, 0 4" fill={arrowColor} />
         </marker>
       </defs>
 

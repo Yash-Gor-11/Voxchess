@@ -12,9 +12,12 @@ export function useStockfish() {
     engineRef.current = engine;
     engine.init(
       (e) => setEvaluation(e),
-      () => setEngineError(true)
+      () => setEngineError(true),
     );
-    return () => { engine.destroy(); engineRef.current = null; };
+    return () => {
+      engine.destroy();
+      engineRef.current = null;
+    };
   }, []);
 
   const evaluate = useCallback((fen: string) => {

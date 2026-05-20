@@ -4,15 +4,30 @@ import type { MoveResult } from "@/types/chess";
 
 // Mock parser: handles a handful of phrases. Real parser comes later.
 const PIECE: Record<string, string> = {
-  pawn: "", knight: "N", bishop: "B", rook: "R", queen: "Q", king: "K",
+  pawn: "",
+  knight: "N",
+  bishop: "B",
+  rook: "R",
+  queen: "Q",
+  king: "K",
 };
 const NUMS: Record<string, string> = {
-  one: "1", two: "2", three: "3", four: "4", five: "5",
-  six: "6", seven: "7", eight: "8",
+  one: "1",
+  two: "2",
+  three: "3",
+  four: "4",
+  five: "5",
+  six: "6",
+  seven: "7",
+  eight: "8",
 };
 
 function normalize(t: string) {
-  return t.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  return t
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function parseChessPhrase(transcript: string): string | null {
@@ -28,7 +43,9 @@ export function parseChessPhrase(transcript: string): string | null {
   });
 
   // Match: [piece] (to|takes) <file><rank> [check]
-  const m = s.match(/^(pawn|knight|bishop|rook|queen|king)?\s*(to|takes|x)?\s*([a-h])\s*([1-8])(\s*check)?$/);
+  const m = s.match(
+    /^(pawn|knight|bishop|rook|queen|king)?\s*(to|takes|x)?\s*([a-h])\s*([1-8])(\s*check)?$/,
+  );
   if (m) {
     const piece = PIECE[m[1] ?? "pawn"] ?? "";
     const cap = m[2] === "takes" || m[2] === "x" ? "x" : "";
@@ -45,13 +62,13 @@ export function parseChessPhrase(transcript: string): string | null {
 export function applyChessVoice(game: Chess, transcript: string): MoveResult {
   const san = parseChessPhrase(transcript);
   if (!san) return { ok: false, message: `Couldn't parse "${transcript}"` };
-  
+
   try {
     // Validate against a clone so we don't mutate the live game
     const tempGame = new ChessClass(game.fen());
     const move = tempGame.move(san);
     if (!move) return { ok: false, message: `Illegal move: ${san}` };
-    
+
     // Return the validated SAN for the hook to apply via the proper state flow
     return { ok: true, san: move.san };
   } catch {

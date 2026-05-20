@@ -195,9 +195,7 @@ function SettingsPage() {
                   className="hidden"
                   onChange={handlePhotoUpload}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  JPG, PNG or GIF · max 2MB
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF · max 2MB</p>
               </div>
             </div>
           </div>
@@ -212,24 +210,18 @@ function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm">Navigation key</div>
-              <div className="text-xs text-muted-foreground">
-                Activates the Nav voice button
-              </div>
+              <div className="text-xs text-muted-foreground">Activates the Nav voice button</div>
             </div>
             <KeyBadge keyName={navKey} />
           </div>
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm">Chess move key</div>
-              <div className="text-xs text-muted-foreground">
-                Activates the Chess voice button
-              </div>
+              <div className="text-xs text-muted-foreground">Activates the Chess voice button</div>
             </div>
             <KeyBadge keyName={chessKey} />
           </div>
-          <p className="text-xs text-muted-foreground">
-            Custom key bindings coming soon.
-          </p>
+          <p className="text-xs text-muted-foreground">Custom key bindings coming soon.</p>
         </div>
       </Card>
 
@@ -249,10 +241,11 @@ function SettingsPage() {
                     await savePreferences({ boardTheme: i });
                     toast.success(`Theme: ${t.name}`);
                   }}
-                  className={`px-3 py-1.5 rounded-md border text-sm transition-all ${boardTheme === i
+                  className={`px-3 py-1.5 rounded-md border text-sm transition-all ${
+                    boardTheme === i
                       ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
                       : "border-border text-muted-foreground hover:border-foreground"
-                    }`}
+                  }`}
                 >
                   {t.name}
                 </button>

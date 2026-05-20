@@ -14,7 +14,8 @@ export class StockfishEngine {
   private isReady = false;
   private queue: string[] = [];
   private currentFen = "";
-  private bestMoves: Array<{ move: string; score: number; scoreType: string; scoreVal: number }> = [];
+  private bestMoves: Array<{ move: string; score: number; scoreType: string; scoreVal: number }> =
+    [];
   private scoreByMultiPV: Record<number, { type: string; val: number }> = {};
   private latestDepth = 0;
   private evalTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -76,9 +77,7 @@ export class StockfishEngine {
 
     if (depth < 8) return;
 
-    const score = scoreType === "mate"
-      ? (scoreVal > 0 ? 10000 : -10000)
-      : scoreVal;
+    const score = scoreType === "mate" ? (scoreVal > 0 ? 10000 : -10000) : scoreVal;
 
     // Store with explicit multipv index (1-based)
     this.bestMoves[multipv - 1] = { move, score, scoreType, scoreVal };
@@ -92,18 +91,14 @@ export class StockfishEngine {
 
       const pv1Score = this.scoreByMultiPV[1];
       const normalizedScore = (this.bestMoves[0].score ?? 0) * this.activeSide;
-      const normalizedMate = pv1Score?.type === "mate"
-        ? pv1Score.val * this.activeSide
-        : null;
+      const normalizedMate = pv1Score?.type === "mate" ? pv1Score.val * this.activeSide : null;
 
       // Preserve multipv order, only include slots that have arrived
       const bestMoves = this.bestMoves
         .map((m) => {
           if (!m) return null;
           const normalizedMoveScore = m.score * this.activeSide;
-          const moveMate = m.scoreType === "mate"
-            ? m.scoreVal * this.activeSide
-            : null;
+          const moveMate = m.scoreType === "mate" ? m.scoreVal * this.activeSide : null;
           return {
             move: m.move,
             score: normalizedMoveScore,
@@ -133,7 +128,9 @@ export class StockfishEngine {
     this.send("go depth 18");
   }
 
-  stop() { this.send("stop"); }
+  stop() {
+    this.send("stop");
+  }
 
   destroy() {
     if (this.evalTimeout) clearTimeout(this.evalTimeout);

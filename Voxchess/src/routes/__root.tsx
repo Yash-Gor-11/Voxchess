@@ -77,10 +77,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "VoxChess — Play chess with your voice" },
-      { name: "description", content: "VoxChess is a voice-first chess platform. Make moves and navigate the entire app by voice." },
+      {
+        name: "description",
+        content:
+          "VoxChess is a voice-first chess platform. Make moves and navigate the entire app by voice.",
+      },
       { name: "author", content: "VoxChess" },
       { property: "og:title", content: "VoxChess — Play chess with your voice" },
-      { property: "og:description", content: "Voice-first chess. Two-button input. Play, analyse, review — hands-free." },
+      {
+        property: "og:description",
+        content: "Voice-first chess. Two-button input. Play, analyse, review — hands-free.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -91,7 +98,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -135,9 +145,7 @@ function GlobalKeys() {
       const el = document.activeElement as HTMLElement | null;
       if (!el) return false;
       return (
-        el instanceof HTMLInputElement ||
-        el instanceof HTMLTextAreaElement ||
-        el.isContentEditable
+        el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el.isContentEditable
       );
     }
     function onKey(e: KeyboardEvent) {

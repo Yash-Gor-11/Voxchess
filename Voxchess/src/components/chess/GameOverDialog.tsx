@@ -1,4 +1,11 @@
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -16,7 +23,9 @@ export function GameOverDialog({ open, result, onClose, onNew }: Props) {
           <DialogDescription>{result}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Review board</Button>
+          <Button variant="outline" onClick={onClose}>
+            Review board
+          </Button>
           <Button onClick={onNew}>New game</Button>
         </DialogFooter>
       </DialogContent>

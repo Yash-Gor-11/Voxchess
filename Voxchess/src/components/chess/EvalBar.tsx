@@ -48,17 +48,15 @@ export function EvalBar({ evaluation, orientation = "white" }: Props) {
           }}
         />
       </div>
-      <div className={cn(
-        "text-xs font-mono font-semibold",
-        whiteAdvantage ? "text-foreground" : "text-muted-foreground"
-      )}>
+      <div
+        className={cn(
+          "text-xs font-mono font-semibold",
+          whiteAdvantage ? "text-foreground" : "text-muted-foreground",
+        )}
+      >
         {evaluation ? scoreLabel : "—"}
       </div>
-      {evaluation && (
-        <div className="text-[10px] text-muted-foreground">
-          d{evaluation.depth}
-        </div>
-      )}
+      {evaluation && <div className="text-[10px] text-muted-foreground">d{evaluation.depth}</div>}
     </div>
   );
 }

@@ -19,8 +19,7 @@ export interface RecognitionHandle {
 
 export function startRecognition(cb: RecognitionCallbacks): RecognitionHandle | null {
   if (!isSpeechSupported()) return null;
-  const Ctor: any =
-    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const Ctor: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const rec = new Ctor();
   rec.lang = "en-US";
   rec.interimResults = true;
@@ -47,5 +46,13 @@ export function startRecognition(cb: RecognitionCallbacks): RecognitionHandle | 
   } catch {
     return null;
   }
-  return { stop: () => { try { rec.stop(); } catch { /* noop */ } } };
+  return {
+    stop: () => {
+      try {
+        rec.stop();
+      } catch {
+        /* noop */
+      }
+    },
+  };
 }

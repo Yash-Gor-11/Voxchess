@@ -63,9 +63,7 @@ function DashboardPage() {
                 <span className="text-xs text-muted-foreground">{s.label}</span>
                 <Icon className="h-4 w-4 text-muted-foreground" />
               </div>
-              <div className="text-2xl font-semibold">
-                {loading ? "—" : s.value}
-              </div>
+              <div className="text-2xl font-semibold">{loading ? "—" : s.value}</div>
             </Card>
           );
         })}
@@ -75,11 +73,7 @@ function DashboardPage() {
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium">Recent games</span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => navigate({ to: "/saved-games" })}
-            >
+            <Button size="sm" variant="outline" onClick={() => navigate({ to: "/saved-games" })}>
               View all
             </Button>
           </div>
@@ -88,11 +82,7 @@ function DashboardPage() {
           ) : recent.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-muted-foreground">No games yet.</p>
-              <Button
-                size="sm"
-                className="mt-3"
-                onClick={() => navigate({ to: "/play" })}
-              >
+              <Button size="sm" className="mt-3" onClick={() => navigate({ to: "/play" })}>
                 Play your first game
               </Button>
             </div>
@@ -141,10 +131,7 @@ function DashboardPage() {
         <Card className="p-5">
           <div className="text-sm font-medium mb-4">Quick actions</div>
           <div className="space-y-2">
-            <Button
-              className="w-full justify-start"
-              onClick={() => navigate({ to: "/play" })}
-            >
+            <Button className="w-full justify-start" onClick={() => navigate({ to: "/play" })}>
               <Swords className="h-4 w-4 mr-2" /> New game
             </Button>
             <Button

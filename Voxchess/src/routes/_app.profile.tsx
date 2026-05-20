@@ -84,15 +84,11 @@ function ProfilePage() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <div className="text-xl font-semibold">
-              {loading ? "—" : displayName}
-            </div>
-            <div className="text-sm text-muted-foreground mt-0.5">
-              {user?.email}
-            </div>
+            <div className="text-xl font-semibold">{loading ? "—" : displayName}</div>
+            <div className="text-sm text-muted-foreground mt-0.5">{user?.email}</div>
             <div className="flex items-center gap-2 mt-2">
               <Badge variant="outline">Member since {memberSince}</Badge>
-              <Badge variant="secondary">Rating {loading ? "—" : dbUser?.rating ?? 1200}</Badge>
+              <Badge variant="secondary">Rating {loading ? "—" : (dbUser?.rating ?? 1200)}</Badge>
             </div>
           </div>
         </div>
@@ -107,9 +103,7 @@ function ProfilePage() {
                 <span className="text-xs text-muted-foreground">{s.label}</span>
                 <Icon className="h-4 w-4 text-muted-foreground" />
               </div>
-              <div className="text-2xl font-semibold">
-                {loading ? "—" : s.value}
-              </div>
+              <div className="text-2xl font-semibold">{loading ? "—" : s.value}</div>
             </Card>
           );
         })}
@@ -159,7 +153,9 @@ function ProfilePage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })}
+                      onClick={() =>
+                        navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })
+                      }
                     >
                       <LineChart className="h-3.5 w-3.5 mr-1.5" />
                       Analyse

@@ -7,27 +7,33 @@ export function useChessGame() {
 
   const bump = useCallback(() => setRevision((r) => r + 1), []);
 
-  const move = useCallback((from: string, to: string, promotion = "q") => {
-    try {
-      const m = gameRef.current.move({ from, to, promotion });
-      if (!m) return false;
-      bump();
-      return true;
-    } catch {
-      return false;
-    }
-  }, [bump]);
+  const move = useCallback(
+    (from: string, to: string, promotion = "q") => {
+      try {
+        const m = gameRef.current.move({ from, to, promotion });
+        if (!m) return false;
+        bump();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [bump],
+  );
 
-  const moveSan = useCallback((san: string) => {
-    try {
-      const m = gameRef.current.move(san);
-      if (!m) return false;
-      bump();
-      return true;
-    } catch {
-      return false;
-    }
-  }, [bump]);
+  const moveSan = useCallback(
+    (san: string) => {
+      try {
+        const m = gameRef.current.move(san);
+        if (!m) return false;
+        bump();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [bump],
+  );
 
   const undo = useCallback(() => {
     gameRef.current.undo();

@@ -135,17 +135,17 @@
 /* VoxChess design tokens */
 :root {
   --brand: oklch(0.32 0.07 255);
-  --accent-blue: oklch(0.52 0.20 263);
+  --accent-blue: oklch(0.52 0.2 263);
   --accent-blue-foreground: oklch(0.99 0 0);
   --accent-chess: oklch(0.62 0.14 160);
   --accent-chess-foreground: oklch(0.99 0 0);
   --board-dark: #769656;
-  --board-light: #EEEED2;
+  --board-light: #eeeed2;
 }
 .dark {
   --board-dark: #4a7c59;
   --board-light: #d4c89a;
-  --accent-blue: oklch(0.62 0.20 263);
+  --accent-blue: oklch(0.62 0.2 263);
   --accent-chess: oklch(0.68 0.14 160);
 }
 
@@ -158,44 +158,77 @@
 }
 
 @keyframes mic-pulse-blue {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(26, 86, 219, 0.45); }
-  50%      { box-shadow: 0 0 0 18px rgba(26, 86, 219, 0); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(26, 86, 219, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 18px rgba(26, 86, 219, 0);
+  }
 }
 @keyframes mic-pulse-green {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(14, 159, 110, 0.45); }
-  50%      { box-shadow: 0 0 0 18px rgba(14, 159, 110, 0); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(14, 159, 110, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 18px rgba(14, 159, 110, 0);
+  }
 }
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes float-y {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-8px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
-.animate-mic-blue  { animation: mic-pulse-blue 2s ease-in-out infinite; }
-.animate-mic-green { animation: mic-pulse-green 2s ease-in-out infinite; }
-.animate-fade-up   { animation: fade-up 0.35s ease-out forwards; }
-.animate-float     { animation: float-y 3s ease-in-out infinite; }
+.animate-mic-blue {
+  animation: mic-pulse-blue 2s ease-in-out infinite;
+}
+.animate-mic-green {
+  animation: mic-pulse-green 2s ease-in-out infinite;
+}
+.animate-fade-up {
+  animation: fade-up 0.35s ease-out forwards;
+}
+.animate-float {
+  animation: float-y 3s ease-in-out infinite;
+}
 
 .text-gradient {
-  background: linear-gradient(135deg, #1A56DB, #9F1AB1);
+  background: linear-gradient(135deg, #1a56db, #9f1ab1);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .bg-gradient-hero {
-  background: radial-gradient(ellipse at 60% 0%, rgba(26,86,219,0.10) 0%, transparent 70%);
+  background: radial-gradient(ellipse at 60% 0%, rgba(26, 86, 219, 0.1) 0%, transparent 70%);
 }
 
 .bg-gradient-cta {
-  background: linear-gradient(135deg, #1A56DB 0%, #1E3A5F 100%);
+  background: linear-gradient(135deg, #1a56db 0%, #1e3a5f 100%);
 }
 
-.shadow-glow-blue  { box-shadow: 0 0 24px rgba(26, 86, 219, 0.30); }
-.shadow-glow-green { box-shadow: 0 0 24px rgba(14, 159, 110, 0.30); }
+.shadow-glow-blue {
+  box-shadow: 0 0 24px rgba(26, 86, 219, 0.3);
+}
+.shadow-glow-green {
+  box-shadow: 0 0 24px rgba(14, 159, 110, 0.3);
+}
 
 @layer base {
   * {

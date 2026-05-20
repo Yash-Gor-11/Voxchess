@@ -19,16 +19,22 @@ function Index() {
       <main>
         <section className="mx-auto max-w-6xl px-6 pt-20 pb-24 grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <Badge variant="outline" className="mb-5">Voice-first chess, reimagined</Badge>
+            <Badge variant="outline" className="mb-5">
+              Voice-first chess, reimagined
+            </Badge>
             <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-[1.05]">
-              Play chess with{" "}
-              <em className="not-italic text-gradient">your voice.</em>
+              Play chess with <em className="not-italic text-gradient">your voice.</em>
             </h1>
             <p className="mt-5 text-lg text-muted-foreground max-w-md">
-              Two buttons. One mic. Move pieces and navigate the entire app without lifting a finger.
+              Two buttons. One mic. Move pieces and navigate the entire app without lifting a
+              finger.
             </p>
             <div className="mt-8 flex gap-3">
-              <Button asChild size="lg" className="bg-[var(--accent-blue)] hover:opacity-90 text-white">
+              <Button
+                asChild
+                size="lg"
+                className="bg-[var(--accent-blue)] hover:opacity-90 text-white"
+              >
                 <Link to="/auth/signup">Get started</Link>
               </Button>
               <Button asChild size="lg" variant="outline">
@@ -41,7 +47,9 @@ function Index() {
               <div className="grid place-items-center h-20 w-20 rounded-full bg-[var(--accent-blue)] text-white animate-mic-blue">
                 <Mic className="h-8 w-8" />
               </div>
-              <div className="font-mono text-sm text-muted-foreground">You said: <span className="text-foreground">“Knight to f3”</span></div>
+              <div className="font-mono text-sm text-muted-foreground">
+                You said: <span className="text-foreground">“Knight to f3”</span>
+              </div>
               <div className="flex items-center gap-2 text-sm font-mono text-emerald-500">
                 <Check className="h-4 w-4" /> Move played: Nf3
               </div>
@@ -51,10 +59,26 @@ function Index() {
 
         <section className="mx-auto max-w-6xl px-6 py-16 grid md:grid-cols-4 gap-4">
           {[
-            { icon: Mic, title: "Natural voice", body: "Speak moves naturally — “knight to f3” or “castle”." },
-            { icon: Compass, title: "2-button input", body: "One key for navigation, one for chess. That’s it." },
-            { icon: Lock, title: "Privacy-first", body: "Recognition runs in your browser. No audio leaves." },
-            { icon: Zap, title: "Lightning fast", body: "Instant response. No round-trip to the cloud." },
+            {
+              icon: Mic,
+              title: "Natural voice",
+              body: "Speak moves naturally — “knight to f3” or “castle”.",
+            },
+            {
+              icon: Compass,
+              title: "2-button input",
+              body: "One key for navigation, one for chess. That’s it.",
+            },
+            {
+              icon: Lock,
+              title: "Privacy-first",
+              body: "Recognition runs in your browser. No audio leaves.",
+            },
+            {
+              icon: Zap,
+              title: "Lightning fast",
+              body: "Instant response. No round-trip to the cloud.",
+            },
           ].map((f) => {
             const Icon = f.icon;
             return (
@@ -71,7 +95,8 @@ function Index() {
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Speak naturally. We understand.</h2>
             <p className="mt-3 text-muted-foreground">
-              VoxChess maps everyday phrasing onto SAN notation — “bishop takes d5”, “castle”, “queen to h five”.
+              VoxChess maps everyday phrasing onto SAN notation — “bishop takes d5”, “castle”,
+              “queen to h five”.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -87,12 +112,19 @@ function Index() {
         <section className="mx-auto max-w-6xl px-6 py-16">
           <Card className="p-10 bg-gradient-cta text-white text-center border-0">
             <h2 className="text-3xl font-bold">Ready to play?</h2>
-            <p className="mt-2 text-white/80">Create an account and play your first voice game in 30 seconds.</p>
+            <p className="mt-2 text-white/80">
+              Create an account and play your first voice game in 30 seconds.
+            </p>
             <div className="mt-6 flex justify-center gap-3">
               <Button asChild size="lg" variant="secondary">
                 <Link to="/auth/signup">Create account</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="bg-transparent text-white border-white/40 hover:bg-white/10">
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="bg-transparent text-white border-white/40 hover:bg-white/10"
+              >
                 <Link to="/tutorial">Voice guide</Link>
               </Button>
             </div>

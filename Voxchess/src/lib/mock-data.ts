@@ -1,9 +1,44 @@
 export const savedGames = [
-  { id: "1", opponent: "Magnus Bot", opening: "Sicilian Defence", moves: 42, date: "2 days ago", result: "win" as const },
-  { id: "2", opponent: "GrandmasterAI", opening: "Queen's Gambit", moves: 31, date: "4 days ago", result: "loss" as const },
-  { id: "3", opponent: "CasualPlayer99", opening: "King's Indian", moves: 67, date: "1 week ago", result: "draw" as const },
-  { id: "4", opponent: "BlitzMaster", opening: "Italian Game", moves: 28, date: "2 weeks ago", result: "win" as const },
-  { id: "5", opponent: "Stockfish L5", opening: "French Defence", moves: 39, date: "3 weeks ago", result: "loss" as const },
+  {
+    id: "1",
+    opponent: "Magnus Bot",
+    opening: "Sicilian Defence",
+    moves: 42,
+    date: "2 days ago",
+    result: "win" as const,
+  },
+  {
+    id: "2",
+    opponent: "GrandmasterAI",
+    opening: "Queen's Gambit",
+    moves: 31,
+    date: "4 days ago",
+    result: "loss" as const,
+  },
+  {
+    id: "3",
+    opponent: "CasualPlayer99",
+    opening: "King's Indian",
+    moves: 67,
+    date: "1 week ago",
+    result: "draw" as const,
+  },
+  {
+    id: "4",
+    opponent: "BlitzMaster",
+    opening: "Italian Game",
+    moves: 28,
+    date: "2 weeks ago",
+    result: "win" as const,
+  },
+  {
+    id: "5",
+    opponent: "Stockfish L5",
+    opening: "French Defence",
+    moves: 39,
+    date: "3 weeks ago",
+    result: "loss" as const,
+  },
 ];
 
 export const recentActivity = [

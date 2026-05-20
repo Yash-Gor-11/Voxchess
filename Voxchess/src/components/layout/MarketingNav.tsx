@@ -9,8 +9,12 @@ export function MarketingNav() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <Logo />
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
-          <Link to="/tutorial" className="hover:text-foreground transition-colors">Tutorial</Link>
-          <Link to="/about" className="hover:text-foreground transition-colors">About</Link>
+          <Link to="/tutorial" className="hover:text-foreground transition-colors">
+            Tutorial
+          </Link>
+          <Link to="/about" className="hover:text-foreground transition-colors">
+            About
+          </Link>
         </nav>
         <div className="flex items-center gap-2">
           <ThemeToggle />

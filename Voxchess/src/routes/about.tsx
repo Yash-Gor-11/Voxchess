@@ -14,13 +14,12 @@ function AboutPage() {
     <div className="min-h-screen bg-background bg-gradient-hero">
       <MarketingNav />
       <main className="mx-auto max-w-3xl px-6 py-16">
-
         <div className="mb-12">
           <h1 className="text-4xl font-bold tracking-tight">About VoxChess</h1>
           <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
-            VoxChess is a voice-first chess platform built around a single problem —
-            voice control in chess has always existed but never worked well enough to
-            actually rely on. We're focused on fixing that.
+            VoxChess is a voice-first chess platform built around a single problem — voice control
+            in chess has always existed but never worked well enough to actually rely on. We're
+            focused on fixing that.
           </p>
         </div>
 
@@ -28,22 +27,22 @@ function AboutPage() {
           <div>
             <h2 className="text-xl font-semibold mb-2">Mission</h2>
             <p className="text-muted-foreground leading-relaxed">
-              To build a reliable, voice-first chess platform that makes chess gameplay
-              more natural, accessible, and efficient. Rather than replacing platforms
-              like Chess.com or Lichess, VoxChess focuses on solving one specific problem —
-              improving the quality, consistency, and usability of voice-controlled chess
-              interaction. The goal is to eliminate constant drag-and-drop piece movement
-              and replace it with accurate, natural spoken commands.
+              To build a reliable, voice-first chess platform that makes chess gameplay more
+              natural, accessible, and efficient. Rather than replacing platforms like Chess.com or
+              Lichess, VoxChess focuses on solving one specific problem — improving the quality,
+              consistency, and usability of voice-controlled chess interaction. The goal is to
+              eliminate constant drag-and-drop piece movement and replace it with accurate, natural
+              spoken commands.
             </p>
           </div>
 
           <div>
             <h2 className="text-xl font-semibold mb-2">Why this exists</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Both Chess.com and Lichess offer voice features, but they are treated as
-              optional add-ons rather than core experiences. Recognition is inconsistent,
-              natural language is barely supported, and navigation remains mouse-dependent.
-              VoxChess treats voice as the primary interaction system — not an afterthought.
+              Both Chess.com and Lichess offer voice features, but they are treated as optional
+              add-ons rather than core experiences. Recognition is inconsistent, natural language is
+              barely supported, and navigation remains mouse-dependent. VoxChess treats voice as the
+              primary interaction system — not an afterthought.
             </p>
           </div>
         </div>
@@ -85,13 +84,11 @@ function AboutPage() {
         <div>
           <h2 className="text-xl font-semibold mb-2">Vision</h2>
           <p className="text-muted-foreground leading-relaxed">
-            This is an exploration into how voice technology can meaningfully improve
-            digital chess experiences. The long-term goal is to build one of the most
-            capable voice-based chess interaction systems available — evolving alongside
-            real-world usage and player feedback.
+            This is an exploration into how voice technology can meaningfully improve digital chess
+            experiences. The long-term goal is to build one of the most capable voice-based chess
+            interaction systems available — evolving alongside real-world usage and player feedback.
           </p>
         </div>
-
       </main>
       <Footer />
     </div>
