@@ -385,7 +385,7 @@ function AnalysisPage() {
     if (jumpMatch) {
       const moveNum = parseInt(jumpMatch[1]);
       if (treeRef.current) {
-        treeRef.current.goToMainLinePly((moveNum - 1) * 2);
+        treeRef.current.goToMainLinePly((moveNum) * 2 - 1);
         setCurrentNode({ ...treeRef.current.current });
         setResult({ ok: true, message: `Move ${moveNum}` });
         setStatus("success");

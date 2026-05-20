@@ -1,20 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { SerializedNode } from "@/lib/chess/analysisEngine";
 
-// ⚠️  DATABASE MIGRATION REQUIRED (run once in Supabase SQL editor):
-//
-//   -- Drop the old unique constraint (game_id, ply_index) if it exists,
-//   -- then create one that includes user_id so each user has their own row.
-//   ALTER TABLE annotations
-//     DROP CONSTRAINT IF EXISTS annotations_game_id_ply_index_key;
-//
-//   ALTER TABLE annotations
-//     ADD CONSTRAINT annotations_game_id_user_id_ply_index_key
-//     UNIQUE (game_id, user_id, ply_index);
-//
-// Without this migration the onConflict below will fall back to a plain
-// insert and you will get duplicate rows / errors on subsequent saves.
-
 export async function saveAnnotations(gameId: string, tree: object) {
   const {
     data: { user },
