@@ -9,6 +9,8 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "./ThemeToggle";
 import { NavVoiceButton } from "@/components/voice/NavVoiceButton";
+import { ChessVoiceButton } from "@/components/voice/ChessVoiceButton";
+import { useVoiceStore } from "@/stores/voiceStore";
 import { supabase } from "@/integrations/supabase/client";
 
 const TITLES: Record<string, string> = {
@@ -22,13 +24,30 @@ const TITLES: Record<string, string> = {
 
 export function AppHeader({ email }: { email?: string }) {
   const loc = useLocation();
+  const isAnalysisPage = loc.pathname.startsWith("/analysis");
+  const { activeMode, activateChessCallback } = useVoiceStore();
+  const isVoiceActive = activeMode === "chess";
+
   const title =
-    TITLES[loc.pathname] ?? (loc.pathname.startsWith("/analysis") ? "Analysis" : "VoxChess");
+    TITLES[loc.pathname] ?? (isAnalysisPage ? "Analysis" : "VoxChess");
 
   return (
     <header className="h-16 border-b border-border/40 bg-background/70 backdrop-blur flex items-center justify-between px-6">
       <h1 className="text-base font-semibold tracking-tight">{title}</h1>
       <div className="flex items-center gap-3">
+
+        {/* Voice navigation — analysis page, mobile only (sidebar hidden on mobile) */}
+        {isAnalysisPage && (
+          <div className="md:hidden">
+            <ChessVoiceButton
+              onActivate={activateChessCallback ?? (() => {})}
+              isActive={isVoiceActive}
+              enabled={!!activateChessCallback}
+              size="sm"
+            />
+          </div>
+        )}
+
         <NavVoiceButton size="sm" />
         <ThemeToggle />
         <DropdownMenu>

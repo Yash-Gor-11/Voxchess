@@ -8,7 +8,7 @@ interface Props {
   onActivate: () => void;
   isActive: boolean;
   enabled?: boolean;
-  size?: "md" | "lg";
+  size?: "sm" |"md" | "lg";
 }
 
 function Knight(props: React.SVGProps<SVGSVGElement>) {
@@ -23,7 +23,8 @@ export function ChessVoiceButton({ onActivate, isActive, enabled = true, size = 
   const supported = typeof window === "undefined" ? true : isSpeechSupported();
   const disabled = !enabled || !supported;
   const status = useVoiceStore((s) => s.status);
-  const px = size === "lg" ? "h-16 w-16" : "h-12 w-12";
+  const px = size === "lg" ? "h-16 w-16" : size === "md" ? "h-12 w-12" : "h-9 w-9";
+  const iconSize = size === "lg" ? "h-7 w-7" : size === "md" ? "h-5 w-5" : "h-4 w-4";
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -43,9 +44,9 @@ export function ChessVoiceButton({ onActivate, isActive, enabled = true, size = 
             )}
           >
             {isActive && status === "listening" ? (
-              <MicOff className="h-6 w-6" />
+              <MicOff className={iconSize} />
             ) : (
-              <Knight className="h-7 w-7" />
+              <Knight className={iconSize} />
             )}
           </button>
         </TooltipTrigger>
