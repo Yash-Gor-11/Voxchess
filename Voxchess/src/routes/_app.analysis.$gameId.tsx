@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, Fragment } from "react";
 import { Chess } from "chess.js";
 import {
   ChevronFirst,
@@ -73,12 +73,11 @@ function renderMoveTree(
         onClick={() => goToNode(node)}
         className={`px-1 py-0.5 rounded hover:bg-muted transition-colors
           ${isVariation ? "italic text-muted-foreground" : ""}
-          ${
-            isActive
-              ? isVariation
-                ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold"
-                : "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-              : ""
+          ${isActive
+            ? isVariation
+              ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold"
+              : "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+            : ""
           }`}
       >
         {isWhite && <span className="text-muted-foreground mr-0.5 not-italic">{moveNum}.</span>}
@@ -119,6 +118,7 @@ function AnalysisPage() {
   const [highlights, setHighlights] = useState<string[]>([]);
   const [rightClickFrom, setRightClickFrom] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { setActivateChessCallback } = useVoiceStore();
 
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<AnalysisTree | null>(null);
@@ -340,7 +340,10 @@ function AnalysisPage() {
     next,
     backToMainLine,
   ]);
-
+  useEffect(() => {
+  setActivateChessCallback(activateVoice);
+  return () => setActivateChessCallback(null); // cleanup on unmount
+}, [activateVoice, setActivateChessCallback]);
   function handleVoiceCommand(t: string) {
     let normalized = t;
     Object.entries(NUMBER_WORDS).forEach(([word, num]) => {
@@ -455,91 +458,80 @@ function AnalysisPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_300px] gap-4">
-        {/* Eval bar */}
-        <div className="flex justify-center lg:justify-start lg:items-stretch">
-          <EvalBar evaluation={evaluation} />
-        </div>
+      {/* Outer grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
 
-        {/* Board */}
+        {/* Board + Eval bar */}
         <Card className="p-3">
-          <div
-            ref={boardContainerRef}
-            className="relative w-full max-w-[560px] mx-auto aspect-square"
-            onMouseUp={(e) => {
-              // Find which square the mouse was released over
-              const el = document.elementFromPoint(e.clientX, e.clientY);
-              const square = el?.closest("[data-square]")?.getAttribute("data-square");
-              if (square) handleMouseUp(square);
-              else setRightClickFrom(null);
-            }}
-          >
-            <Chessboard
-              options={{
-                position: currentNode.fen,
-                onPieceDrop: (args) => {
-                  if (!args.targetSquare) return false;
-                  return handlePieceDrop(args.sourceSquare, args.targetSquare);
-                },
-                onSquareRightClick: (args) => handleSquareRightClick(args.square),
-                boardStyle: { borderRadius: 6, overflow: "hidden" },
-                darkSquareStyle: { backgroundColor: "#769656" },
-                lightSquareStyle: { backgroundColor: "#EEEED2" },
-              }}
-            />
-            <BoardOverlay arrows={arrows} highlights={highlights} boardRef={boardContainerRef} />
-          </div>
+          <div className="flex gap-2 items-stretch justify-center">
+            {/* Eval bar */}
+            <div className="flex-shrink-0 flex flex-col">
+              <EvalBar evaluation={evaluation} />
+            </div>
 
-          {/* Controls */}
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={first}
-              disabled={currentNode.plyIndex === 0}
-            >
-              <ChevronFirst className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={prev}
-              disabled={currentNode.plyIndex === 0}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-xs text-muted-foreground font-mono w-20 text-center">
-              {currentNode.plyIndex} / {mainLine.length - 1}
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={next}
-              disabled={currentNode.children.length === 0}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={last}
-              disabled={currentNode.children.length === 0}
-            >
-              <ChevronLast className="h-4 w-4" />
-            </Button>
+            {/* Board — constrained max width */}
+            <div className="w-full max-w-[520px]">
+              <div
+                ref={boardContainerRef}
+                className="relative w-full aspect-square"
+                onMouseUp={(e) => {
+                  const el = document.elementFromPoint(e.clientX, e.clientY);
+                  const square = el?.closest("[data-square]")?.getAttribute("data-square");
+                  if (square) handleMouseUp(square);
+                  else setRightClickFrom(null);
+                }}
+              >
+                <Chessboard
+                  options={{
+                    position: currentNode.fen,
+                    onPieceDrop: (args) => {
+                      if (!args.targetSquare) return false;
+                      return handlePieceDrop(args.sourceSquare, args.targetSquare);
+                    },
+                    onSquareRightClick: (args) => handleSquareRightClick(args.square),
+                    boardStyle: { borderRadius: 6, overflow: "hidden" },
+                    darkSquareStyle: { backgroundColor: "#769656" },
+                    lightSquareStyle: { backgroundColor: "#EEEED2" },
+                  }}
+                />
+                <BoardOverlay
+                  arrows={arrows}
+                  highlights={highlights}
+                  boardRef={boardContainerRef}
+                />
+              </div>
+
+              {/* Controls */}
+              <div className="mt-2 flex items-center justify-center gap-2">
+                <Button size="sm" variant="outline" onClick={first}
+                  disabled={currentNode.plyIndex === 0}>
+                  <ChevronFirst className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="outline" onClick={prev}
+                  disabled={currentNode.plyIndex === 0}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground font-mono w-20 text-center">
+                  {currentNode.plyIndex} / {mainLine.length - 1}
+                </span>
+                <Button size="sm" variant="outline" onClick={next}
+                  disabled={currentNode.children.length === 0}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="outline" onClick={last}
+                  disabled={currentNode.children.length === 0}>
+                  <ChevronLast className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </Card>
-
         {/* Right panel */}
-        <div className="space-y-3">
+<div className="flex flex-col gap-3" style={{ height: "fit-content" }}>
           {/* Engine eval */}
           <Card className="p-4">
-            <div
-              className="text-xs font-medium uppercase tracking-wider
-    text-muted-foreground mb-3"
-            >
-              Engine
-            </div>
+            <div className="text-xs font-medium uppercase tracking-wider
+      text-muted-foreground mb-3">Engine</div>
             {evaluation ? (
               <div className="space-y-2">
                 {evaluation.bestMoves.map((m, i) => {
@@ -551,40 +543,28 @@ function AnalysisPage() {
                     const promo = m.move.slice(4) || undefined;
                     const result = chess.move({ from, to, promotion: promo });
                     if (result) san = result.san;
-                  } catch {
-                    /* keep uci */
-                  }
+                  } catch { /* keep uci */ }
 
-                  const scoreLabel =
-                    m.mate !== null
-                      ? `${m.mate > 0 ? "+" : "-"}M${Math.abs(m.mate)}`
-                      : `${m.score >= 0 ? "+" : ""}${(m.score / 100).toFixed(1)}`;
+                  const scoreLabel = m.mate !== null
+                    ? `${m.mate > 0 ? "+" : "-"}M${Math.abs(m.mate)}`
+                    : `${m.score >= 0 ? "+" : ""}${(m.score / 100).toFixed(1)}`;
 
                   return (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between
-            text-sm py-1 border-b border-border/30 last:border-0"
-                    >
+                    <div key={i} className="flex items-center justify-between
+              text-sm py-1 border-b border-border/30 last:border-0">
                       <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] w-5
-                h-5 p-0 flex items-center justify-center"
-                        >
+                        <Badge variant="outline" className="text-[10px] w-5
+                  h-5 p-0 flex items-center justify-center">
                           {i + 1}
                         </Badge>
                         <span className="font-mono">{san}</span>
                       </div>
-                      <span
-                        className={`font-mono text-xs font-semibold ${
-                          m.score > 0
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : m.score < 0
-                              ? "text-destructive"
-                              : "text-muted-foreground"
-                        }`}
-                      >
+                      <span className={`font-mono text-xs font-semibold ${m.score > 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : m.score < 0
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                        }`}>
                         {scoreLabel}
                       </span>
                     </div>
@@ -598,38 +578,85 @@ function AnalysisPage() {
             )}
           </Card>
 
-          {/* Move list with variations */}
-          <Card className="p-4">
-            <div
-              className="text-xs font-medium uppercase tracking-wider
-              text-muted-foreground mb-3"
-            >
-              Moves
-            </div>
-            <ScrollArea className="h-48">
-              <div className="font-mono text-xs pr-2 leading-6">
-                {tree.root.children.length > 0 ? (
-                  renderMoveTree([tree.root.children[0]], currentNode.id, goToNode)
-                ) : (
-                  <span className="text-muted-foreground">No moves</span>
-                )}
-              </div>
-            </ScrollArea>
-          </Card>
+          {/* Move scoresheet — fills remaining height */}
+<Card className="p-4 flex flex-col flex-1">
+    <div className="text-xs font-medium uppercase tracking-wider
+      text-muted-foreground mb-3">Moves</div>
+    <ScrollArea className="h-[350px]">
+              <table className="w-full text-xs font-mono">
+                <tbody>
+                  {Array.from(
+                    { length: Math.ceil((mainLine.length - 1) / 2) },
+                    (_, i) => {
+                      const whiteNode = mainLine[i * 2 + 1];
+                      const blackNode = mainLine[i * 2 + 2];
+                      const whiteVars = whiteNode?.parent?.children.slice(1) ?? [];
+                      const blackVars = blackNode?.parent?.children.slice(1) ?? [];
 
-          {/* Voice */}
-          <Card className="p-4 text-center">
-            <div
-              className="text-xs text-muted-foreground uppercase
-              tracking-wider mb-3"
-            >
-              Voice navigation
-            </div>
-            <ChessVoiceButton onActivate={activateVoice} isActive={isListening} enabled />
-            <div className="text-xs text-muted-foreground mt-2">
-              Space · "next" · "previous" · "go to move 5" · "main line"
-            </div>
-            <TranscriptDisplay mode="chess" />
+                      return (
+                        <Fragment key={i}>
+                          <tr className="border-b border-border/20 last:border-0">
+                            <td className="py-1 pr-2 text-muted-foreground w-8">
+                              {i + 1}.
+                            </td>
+                            <td className="py-1 pr-2 w-[45%]">
+                              {whiteNode && (
+                                <button
+                                  onClick={() => goToNode(whiteNode)}
+                                  className={`px-1.5 py-0.5 rounded w-full text-left
+                            hover:bg-muted transition-colors
+                            ${currentNode.id === whiteNode.id
+                                      ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+                                      : ""}`}
+                                >
+                                  {whiteNode.san}
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-1 w-[45%]">
+                              {blackNode && (
+                                <button
+                                  onClick={() => goToNode(blackNode)}
+                                  className={`px-1.5 py-0.5 rounded w-full text-left
+                            hover:bg-muted transition-colors
+                            ${currentNode.id === blackNode.id
+                                      ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+                                      : ""}`}
+                                >
+                                  {blackNode.san}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {(whiteVars.length > 0 || blackVars.length > 0) && (
+                            <tr>
+                              <td colSpan={3} className="py-1 pl-4 pb-2">
+                                <div className="text-muted-foreground italic leading-6">
+                                  {whiteVars.map((varNode) => (
+                                    <span key={varNode.id}>
+                                      {"("}
+                                      {renderMoveTree([varNode], currentNode.id, goToNode)}
+                                      {") "}
+                                    </span>
+                                  ))}
+                                  {blackVars.map((varNode) => (
+                                    <span key={varNode.id}>
+                                      {"("}
+                                      {renderMoveTree([varNode], currentNode.id, goToNode)}
+                                      {") "}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    }
+                  )}
+                </tbody>
+              </table>
+            </ScrollArea>
           </Card>
         </div>
       </div>

@@ -1,7 +1,10 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, Swords, BookmarkCheck, LineChart, Settings, User } from "lucide-react";
+import { LayoutDashboard, Swords, BookmarkCheck, Settings, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "./Logo";
+import { ChessVoiceButton } from "@/components/voice/ChessVoiceButton";
+import { TranscriptDisplay } from "@/components/voice/TranscriptDisplay";
+import { useVoiceStore } from "@/stores/voiceStore";
 
 const items = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -13,6 +16,10 @@ const items = [
 
 export function AppSidebar({ email }: { email?: string }) {
   const loc = useLocation();
+  const isAnalysisPage = loc.pathname.startsWith("/analysis");
+  const { activeMode, activateChessCallback } = useVoiceStore();
+  const isVoiceActive = activeMode === "chess";
+
   return (
     <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-border/40 bg-card/40">
       <div className="px-5 py-5">
@@ -39,6 +46,26 @@ export function AppSidebar({ email }: { email?: string }) {
           );
         })}
       </nav>
+
+      {/* Voice navigation — analysis page only */}
+      {isAnalysisPage && (
+        <div className="border-t border-border/40 p-4 text-center space-y-2">
+          <div className="text-xs text-muted-foreground uppercase tracking-wider">
+            Voice navigation
+          </div>
+          <ChessVoiceButton
+            onActivate={activateChessCallback ?? (() => {})}
+            isActive={isVoiceActive}
+            enabled={!!activateChessCallback}
+          />
+          <div className="text-[10px] text-muted-foreground leading-relaxed">
+            Space · "next" · "previous"<br />
+            "go to move 5" · "main line"
+          </div>
+          <TranscriptDisplay mode="chess" />
+        </div>
+      )}
+
       <div className="border-t border-border/40 p-4 text-xs text-muted-foreground">
         <div className="truncate">{email ?? "Signed in"}</div>
       </div>
