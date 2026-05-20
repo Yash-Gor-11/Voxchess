@@ -1,5 +1,5 @@
 import { useLocation } from "@tanstack/react-router";
-import { LogOut, User } from "lucide-react";
+import { LogOut, Menu, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
 import { NavVoiceButton } from "@/components/voice/NavVoiceButton";
 import { ChessVoiceButton } from "@/components/voice/ChessVoiceButton";
@@ -22,7 +23,13 @@ const TITLES: Record<string, string> = {
   "/profile": "Profile",
 };
 
-export function AppHeader({ email }: { email?: string }) {
+interface AppHeaderProps {
+  email?: string;
+  /** Called when the hamburger is tapped — opens the mobile nav sheet. */
+  onMenuClick: () => void;
+}
+
+export function AppHeader({ email, onMenuClick }: AppHeaderProps) {
   const loc = useLocation();
   const isAnalysisPage = loc.pathname.startsWith("/analysis");
   const { activeMode, activateChessCallback } = useVoiceStore();
@@ -31,10 +38,23 @@ export function AppHeader({ email }: { email?: string }) {
   const title = TITLES[loc.pathname] ?? (isAnalysisPage ? "Analysis" : "VoxChess");
 
   return (
-    <header className="h-16 border-b border-border/40 bg-background/70 backdrop-blur flex items-center justify-between px-6">
-      <h1 className="text-base font-semibold tracking-tight">{title}</h1>
+    <header className="h-16 border-b border-border/40 bg-background/70 backdrop-blur flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-3">
-        {/* Voice navigation — analysis page, mobile only (sidebar hidden on mobile) */}
+        {/* Hamburger — mobile only; desktop sidebar is always visible */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={onMenuClick}
+          aria-label="Open navigation"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <h1 className="text-base font-semibold tracking-tight">{title}</h1>
+      </div>
+
+      <div className="flex items-center gap-3">
+        {/* Chess voice button — analysis page, mobile only (sidebar handles desktop) */}
         {isAnalysisPage && (
           <div className="md:hidden">
             <ChessVoiceButton

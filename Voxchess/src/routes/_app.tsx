@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { isSpeechSupported } from "@/lib/voice/speechRecognition";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppSidebar } from "@/components/layout/AppSidebar";
@@ -7,6 +7,7 @@ import { VoiceStatusBar } from "@/components/layout/VoiceStatusBar";
 import { Banner } from "@/components/layout/Banner";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async () => {
@@ -21,8 +22,13 @@ function AppLayout() {
   const { user, loading } = useAuth();
   const supported = typeof window === "undefined" ? true : isSpeechSupported();
   const navigate = useNavigate();
+  const { setBoardTheme, setBoardSize } = useSettingsStore();
 
-  // Handle session expiry and cross-tab sign-out
+  // Mobile nav sheet state — lifted here so header hamburger and sidebar
+  // sheet are in sync without a store or prop-drilling through many layers.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Handle session expiry and cross-tab sign-out.
   useEffect(() => {
     const {
       data: { subscription },
@@ -34,6 +40,23 @@ function AppLayout() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  // Hydrate settings store from Supabase on every page load so board
+  // preferences apply immediately everywhere, not only after visiting Settings.
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("users")
+      .select("preferences")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (!data?.preferences) return;
+        const prefs = data.preferences as Record<string, unknown>;
+        if (typeof prefs.boardThemeIndex === "number") setBoardTheme(prefs.boardThemeIndex);
+        if (typeof prefs.boardSize === "number") setBoardSize(prefs.boardSize);
+      });
+  }, [user, setBoardTheme, setBoardSize]);
+
   if (loading)
     return (
       <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">
@@ -43,9 +66,16 @@ function AppLayout() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      <AppSidebar email={user?.email ?? undefined} />
+      <AppSidebar
+        email={user?.email ?? undefined}
+        mobileNavOpen={mobileNavOpen}
+        setMobileNavOpen={setMobileNavOpen}
+      />
       <div className="flex-1 flex flex-col min-w-0">
-        <AppHeader email={user?.email ?? undefined} />
+        <AppHeader
+          email={user?.email ?? undefined}
+          onMenuClick={() => setMobileNavOpen(true)}
+        />
         <VoiceStatusBar />
         {!supported && (
           <Banner>
