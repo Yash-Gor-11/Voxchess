@@ -1,4 +1,5 @@
 import { Chessboard } from "react-chessboard";
+import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 
 interface Props {
   fen: string;
@@ -6,8 +7,11 @@ interface Props {
 }
 
 export function BoardWrapper({ fen, onPieceDrop }: Props) {
+  const { boardThemeIndex, boardSize } = useSettingsStore();
+  const theme = BOARD_THEMES[boardThemeIndex] ?? BOARD_THEMES[0];
+
   return (
-    <div className="relative w-full max-w-[560px] mx-auto aspect-square">
+    <div className="relative mx-auto aspect-square" style={{ width: boardSize }}>
       <Chessboard
         options={{
           position: fen,
@@ -16,8 +20,8 @@ export function BoardWrapper({ fen, onPieceDrop }: Props) {
             return onPieceDrop(sourceSquare, targetSquare);
           },
           boardStyle: { borderRadius: 8, overflow: "hidden" },
-          darkSquareStyle: { backgroundColor: "var(--board-dark)" },
-          lightSquareStyle: { backgroundColor: "var(--board-light)" },
+          darkSquareStyle: { backgroundColor: theme.dark },
+          lightSquareStyle: { backgroundColor: theme.light },
         }}
       />
     </div>

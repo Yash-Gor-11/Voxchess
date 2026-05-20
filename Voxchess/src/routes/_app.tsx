@@ -24,7 +24,9 @@ function AppLayout() {
 
   // Handle session expiry and cross-tab sign-out
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || !session) {
         navigate({ to: "/auth/login" });
       }

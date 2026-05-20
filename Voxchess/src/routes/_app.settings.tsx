@@ -11,19 +11,12 @@ import { toast } from "sonner";
 import { Chessboard } from "react-chessboard";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — VoxChess" }] }),
   component: SettingsPage,
 });
-
-const BOARD_THEMES = [
-  { name: "Classic", dark: "#769656", light: "#EEEED2" },
-  { name: "Ocean", dark: "#4682B4", light: "#B0C4DE" },
-  { name: "Walnut", dark: "#7B4F2E", light: "#E8C99A" },
-  { name: "Midnight", dark: "#2C2C54", light: "#6C6C9E" },
-  { name: "Forest", dark: "#2D5A27", light: "#A8D5A2" },
-];
 
 const PREVIEW_FEN = "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R";
 
@@ -38,13 +31,14 @@ function KeyBadge({ keyName }: { keyName: string }) {
 function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [savingName, setSavingName] = useState(false);
-  const [boardTheme, setBoardTheme] = useState(0);
-  const [boardSize, setBoardSize] = useState(280);
   const [navKey, setNavKey] = useState("N");
   const [chessKey, setChessKey] = useState("Space");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Board prefs live in the store so other pages react immediately
+  const { boardThemeIndex, boardSize, setBoardTheme, setBoardSize } = useSettingsStore();
 
   useEffect(() => {
     async function load() {
@@ -71,6 +65,7 @@ function SettingsPage() {
             navKey?: string;
             chessKey?: string;
           } | null;
+          // Write into store so board picks them up immediately
           if (prefs?.boardTheme !== undefined) setBoardTheme(prefs.boardTheme);
           if (prefs?.boardSize !== undefined) setBoardSize(prefs.boardSize);
           if (prefs?.navKey) setNavKey(prefs.navKey);
@@ -81,7 +76,7 @@ function SettingsPage() {
       }
     }
     load();
-  }, []);
+  }, [setBoardTheme, setBoardSize]);
 
   async function savePreferences(patch: Record<string, unknown>) {
     try {
@@ -148,7 +143,7 @@ function SettingsPage() {
     setConfirmDelete(false);
   }
 
-  const theme = BOARD_THEMES[boardTheme];
+  const theme = BOARD_THEMES[boardThemeIndex];
 
   return (
     <div className="p-6 max-w-2xl space-y-6">
@@ -242,7 +237,7 @@ function SettingsPage() {
                     toast.success(`Theme: ${t.name}`);
                   }}
                   className={`px-3 py-1.5 rounded-md border text-sm transition-all ${
-                    boardTheme === i
+                    boardThemeIndex === i
                       ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
                       : "border-border text-muted-foreground hover:border-foreground"
                   }`}

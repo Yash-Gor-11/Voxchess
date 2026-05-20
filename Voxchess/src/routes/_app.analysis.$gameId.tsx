@@ -17,15 +17,13 @@ import { toast } from "sonner";
 import { Chessboard } from "react-chessboard";
 import { BoardOverlay } from "@/components/chess/BoardOverlay";
 import { EvalBar } from "@/components/chess/EvalBar";
-import { ChessVoiceButton } from "@/components/voice/ChessVoiceButton";
-import { TranscriptDisplay } from "@/components/voice/TranscriptDisplay";
 import { getGame } from "@/lib/supabase/games";
 import { saveAnnotations, getAnnotations } from "@/lib/supabase/annotations";
 import { AnalysisTree, type TreeNode } from "@/lib/chess/analysisEngine";
 import { useStockfish } from "@/hooks/useStockfish";
 import { useVoiceStore } from "@/stores/voiceStore";
 import { isSpeechSupported, startRecognition } from "@/lib/voice/speechRecognition";
-
+import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 export const Route = createFileRoute("/_app/analysis/$gameId")({
   head: () => ({ meta: [{ title: "Analysis — VoxChess" }] }),
   component: AnalysisPage,
@@ -119,7 +117,8 @@ function AnalysisPage() {
   const [rightClickFrom, setRightClickFrom] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const { setActivateChessCallback } = useVoiceStore();
-
+  const { boardThemeIndex } = useSettingsStore();
+  const boardTheme = BOARD_THEMES[boardThemeIndex] ?? BOARD_THEMES[0];
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<AnalysisTree | null>(null);
 
@@ -471,8 +470,8 @@ function AnalysisPage() {
                     },
                     onSquareRightClick: (args) => handleSquareRightClick(args.square),
                     boardStyle: { borderRadius: 6, overflow: "hidden" },
-                    darkSquareStyle: { backgroundColor: "#769656" },
-                    lightSquareStyle: { backgroundColor: "#EEEED2" },
+                    darkSquareStyle: { backgroundColor: boardTheme.dark },
+                    lightSquareStyle: { backgroundColor: boardTheme.light },
                   }}
                 />
                 <BoardOverlay
