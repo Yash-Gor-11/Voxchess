@@ -38,12 +38,35 @@ export async function getGames() {
 }
 
 export async function deleteGame(id: string) {
-  const { error } = await supabase.from("games").delete().eq("id", id);
+  // FIX (High): scope delete to the current user so one user can never
+  // delete another user's game even if RLS is misconfigured.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase
+    .from("games")
+    .delete()
+    .eq("id", id)
+    .or(`white_id.eq.${user.id},black_id.eq.${user.id}`);
+
   if (error) throw error;
 }
 
 export async function getGame(id: string) {
-  const { data, error } = await supabase.from("games").select("*").eq("id", id).single();
+  // FIX (High): scope read to the current user for the same reason.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("games")
+    .select("*")
+    .eq("id", id)
+    .or(`white_id.eq.${user.id},black_id.eq.${user.id}`)
+    .single();
 
   if (error) throw error;
   return data;

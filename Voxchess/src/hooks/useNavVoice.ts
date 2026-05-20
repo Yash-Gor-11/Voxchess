@@ -36,23 +36,35 @@ export function useNavVoice() {
     setTranscript("");
     setResult(null);
     handleRef.current = startRecognition({
-      onResult: (t, isFinal) => {
+      onResult: async (t, isFinal) => {
         setTranscript(t);
         if (!isFinal) return;
+
         const cmd = parseNavPhrase(t);
+
         if (!cmd.ok) {
           setStatus("error");
           setResult({ ok: false, message: cmd.message });
           toast.error(cmd.message ?? "Unknown command");
         } else if (cmd.action === "signout") {
-          supabase.auth.signOut();
+          // FIX (High): await signOut so the session is cleared before
+          // navigating. Without await the redirect races the Supabase call
+          // and _app.tsx beforeLoad may still see an active session.
           setStatus("success");
           setResult({ ok: true, message: "Signing out…" });
+          await supabase.auth.signOut();
+          navigate({ to: "/auth/login" });
+        } else if (cmd.action === "newgame") {
+          // FIX (Medium): "new game" command was parsed but never handled.
+          navigate({ to: "/play" });
+          setStatus("success");
+          setResult({ ok: true, message: "Starting new game" });
         } else if (cmd.to) {
           navigate({ to: cmd.to as any });
           setStatus("success");
           setResult({ ok: true, message: `Going to ${cmd.to}` });
         }
+
         setTimeout(() => {
           setActive(null);
           setStatus("idle");
