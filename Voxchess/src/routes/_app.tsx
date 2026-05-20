@@ -72,10 +72,7 @@ function AppLayout() {
         setMobileNavOpen={setMobileNavOpen}
       />
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        <AppHeader
-          email={user?.email ?? undefined}
-          onMenuClick={() => setMobileNavOpen(true)}
-        />
+        <AppHeader email={user?.email ?? undefined} onMenuClick={() => setMobileNavOpen(true)} />
         <VoiceStatusBar />
         {!supported && (
           <Banner>

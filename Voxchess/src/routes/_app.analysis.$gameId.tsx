@@ -32,9 +32,26 @@ export const Route = createFileRoute("/_app/analysis/$gameId")({
 });
 
 const NUMBER_WORDS: Record<string, number> = {
-  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
-  nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
-  fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
 };
 
 function renderMoveTree(
@@ -53,11 +70,13 @@ function renderMoveTree(
         onClick={() => goToNode(node)}
         className={`px-1 py-0.5 rounded hover:bg-muted transition-colors
           ${isVariation ? "italic text-muted-foreground" : ""}
-          ${currentNodeId === node.id
-            ? isVariation
-              ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold"
-              : "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-            : ""}`}
+          ${
+            currentNodeId === node.id
+              ? isVariation
+                ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold"
+                : "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+              : ""
+          }`}
       >
         {isWhite && <span className="text-muted-foreground mr-0.5 not-italic">{moveNum}.</span>}
         {node.san}
@@ -70,7 +89,9 @@ function renderMoveTree(
         {moveButton}
         {varChildren.map((varNode) => (
           <span key={varNode.id} className="text-muted-foreground">
-            {" ("}{renderMoveTree([varNode], currentNodeId, goToNode, depth + 1)}{")"}
+            {" ("}
+            {renderMoveTree([varNode], currentNodeId, goToNode, depth + 1)}
+            {")"}
           </span>
         ))}
         {mainChild && renderMoveTree([mainChild], currentNodeId, goToNode, depth)}
@@ -145,12 +166,15 @@ function AnalysisPage() {
   // both width and height grow/shrink by the same amount.
   const dragStartRef = useRef<{ x: number; y: number; size: number } | null>(null);
 
-  const onDragHandlePointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragStartRef.current = { x: e.clientX, y: e.clientY, size: boardSize };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, [boardSize]);
+  const onDragHandlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragStartRef.current = { x: e.clientX, y: e.clientY, size: boardSize };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [boardSize],
+  );
 
   const onDragHandlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragStartRef.current) return;
@@ -181,13 +205,18 @@ function AnalysisPage() {
     dragStartRef.current = null;
   }, []);
 
-  useEffect(() => { treeRef.current = tree; }, [tree]);
+  useEffect(() => {
+    treeRef.current = tree;
+  }, [tree]);
 
   useEffect(() => {
     async function load() {
       try {
         const game = await getGame(gameId);
-        if (!game.pgn) { toast.error("No moves in this game"); return; }
+        if (!game.pgn) {
+          toast.error("No moves in this game");
+          return;
+        }
         const chess = new Chess();
         chess.loadPgn(game.pgn);
         const history = chess.history();
@@ -205,9 +234,14 @@ function AnalysisPage() {
             t.current = restoredRoot;
             setCurrentNode(restoredRoot);
           }
-        } catch { /* no annotations yet */ }
-      } catch { toast.error("Could not load game"); }
-      finally { setLoading(false); }
+        } catch {
+          /* no annotations yet */
+        }
+      } catch {
+        toast.error("Could not load game");
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, [gameId]);
@@ -257,43 +291,64 @@ function AnalysisPage() {
     toast("Back to main line");
   }, []);
 
-  const handleVoiceCommand = useCallback((t: string) => {
-    let normalized = t;
-    Object.entries(NUMBER_WORDS).forEach(([word, num]) => {
-      normalized = normalized.replace(new RegExp(`\\b${word}\\b`, "g"), String(num));
-    });
-    if (/\b(first|start|beginning)\b/.test(normalized)) {
-      first(); setResult({ ok: true, message: "First move" }); setStatus("success"); return;
-    }
-    if (/\b(last|end|final)\b/.test(normalized)) {
-      last(); setResult({ ok: true, message: "Last move" }); setStatus("success"); return;
-    }
-    if (/\b(back|previous|prev)\b/.test(normalized)) {
-      prev(); setResult({ ok: true, message: "Previous" }); setStatus("success"); return;
-    }
-    if (/\b(next|forward)\b/.test(normalized)) {
-      next(); setResult({ ok: true, message: "Next" }); setStatus("success"); return;
-    }
-    if (/\b(main line|mainline)\b/.test(normalized)) {
-      backToMainLine(); setResult({ ok: true, message: "Main line" }); setStatus("success"); return;
-    }
-    const jumpMatch = normalized.match(/(?:go to|jump to|move|goto)\s+(\d+)/);
-    if (jumpMatch) {
-      const moveNum = parseInt(jumpMatch[1]);
-      if (treeRef.current) {
-        treeRef.current.goToMainLinePly(moveNum * 2 - 1);
-        setCurrentNode({ ...treeRef.current.current });
-        setResult({ ok: true, message: `Move ${moveNum}` });
+  const handleVoiceCommand = useCallback(
+    (t: string) => {
+      let normalized = t;
+      Object.entries(NUMBER_WORDS).forEach(([word, num]) => {
+        normalized = normalized.replace(new RegExp(`\\b${word}\\b`, "g"), String(num));
+      });
+      if (/\b(first|start|beginning)\b/.test(normalized)) {
+        first();
+        setResult({ ok: true, message: "First move" });
         setStatus("success");
+        return;
       }
-      return;
-    }
-    setResult({ ok: false, message: `Not recognised: "${t}"` });
-    setStatus("error");
-  }, [first, last, prev, next, backToMainLine, setResult, setStatus]);
+      if (/\b(last|end|final)\b/.test(normalized)) {
+        last();
+        setResult({ ok: true, message: "Last move" });
+        setStatus("success");
+        return;
+      }
+      if (/\b(back|previous|prev)\b/.test(normalized)) {
+        prev();
+        setResult({ ok: true, message: "Previous" });
+        setStatus("success");
+        return;
+      }
+      if (/\b(next|forward)\b/.test(normalized)) {
+        next();
+        setResult({ ok: true, message: "Next" });
+        setStatus("success");
+        return;
+      }
+      if (/\b(main line|mainline)\b/.test(normalized)) {
+        backToMainLine();
+        setResult({ ok: true, message: "Main line" });
+        setStatus("success");
+        return;
+      }
+      const jumpMatch = normalized.match(/(?:go to|jump to|move|goto)\s+(\d+)/);
+      if (jumpMatch) {
+        const moveNum = parseInt(jumpMatch[1]);
+        if (treeRef.current) {
+          treeRef.current.goToMainLinePly(moveNum * 2 - 1);
+          setCurrentNode({ ...treeRef.current.current });
+          setResult({ ok: true, message: `Move ${moveNum}` });
+          setStatus("success");
+        }
+        return;
+      }
+      setResult({ ok: false, message: `Not recognised: "${t}"` });
+      setStatus("error");
+    },
+    [first, last, prev, next, backToMainLine, setResult, setStatus],
+  );
 
   const activateVoice = useCallback(() => {
-    if (!isSpeechSupported()) { toast.error("Voice requires Chrome or Edge"); return; }
+    if (!isSpeechSupported()) {
+      toast.error("Voice requires Chrome or Edge");
+      return;
+    }
     if (isListening) return;
     setIsListening(true);
     setActive("chess");
@@ -312,10 +367,21 @@ function AnalysisPage() {
       },
       onEnd: () => {
         setIsListening(false);
-        if (!resultReceived) { setActive(null); setStatus("idle"); }
-        else { setTimeout(() => { setActive(null); setStatus("idle"); }, 1500); }
+        if (!resultReceived) {
+          setActive(null);
+          setStatus("idle");
+        } else {
+          setTimeout(() => {
+            setActive(null);
+            setStatus("idle");
+          }, 1500);
+        }
       },
-      onError: () => { setIsListening(false); setActive(null); setStatus("error"); },
+      onError: () => {
+        setIsListening(false);
+        setActive(null);
+        setStatus("error");
+      },
     });
   }, [isListening, handleVoiceCommand, setActive, setStatus, setTranscript, setResult]);
 
@@ -328,11 +394,23 @@ function AnalysisPage() {
     function onKey(e: KeyboardEvent) {
       const el = document.activeElement as HTMLElement | null;
       const inputFocused =
-        !!el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el.isContentEditable);
+        !!el &&
+        (el instanceof HTMLInputElement ||
+          el instanceof HTMLTextAreaElement ||
+          el.isContentEditable);
       if (inputFocused) return;
-      if (e.key === "ArrowLeft") { e.preventDefault(); prev(); }
-      if (e.key === "ArrowRight") { e.preventDefault(); next(); }
-      if (e.code === "Space") { e.preventDefault(); activateVoice(); }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        prev();
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        next();
+      }
+      if (e.code === "Space") {
+        e.preventDefault();
+        activateVoice();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -347,13 +425,18 @@ function AnalysisPage() {
       ((piece.color === "w" && to[1] === "8") || (piece.color === "b" && to[1] === "1"));
     const uci = isPromotion ? `${from}${to}q` : `${from}${to}`;
     const node = treeRef.current.makeMove(uci);
-    if (!node) { toast.error("Illegal move"); return false; }
+    if (!node) {
+      toast.error("Illegal move");
+      return false;
+    }
     setRevision((r) => r + 1);
     setCurrentNode({ ...node });
     return true;
   }
 
-  function handleSquareRightClick(square: string) { setRightClickFrom(square); }
+  function handleSquareRightClick(square: string) {
+    setRightClickFrom(square);
+  }
 
   function handleMouseUp(square: string) {
     if (!rightClickFrom) return;
@@ -377,8 +460,10 @@ function AnalysisPage() {
   }
 
   function clearAnnotations() {
-    setArrows([]); setHighlights([]);
-    treeRef.current?.setArrows([]); treeRef.current?.setHighlights([]);
+    setArrows([]);
+    setHighlights([]);
+    treeRef.current?.setArrows([]);
+    treeRef.current?.setHighlights([]);
   }
 
   async function handleSave() {
@@ -387,7 +472,9 @@ function AnalysisPage() {
     try {
       await saveAnnotations(gameId, treeRef.current.serialize());
       toast.success("Analysis saved");
-    } catch { toast.error("Could not save analysis"); }
+    } catch {
+      toast.error("Could not save analysis");
+    }
     setSaving(false);
   }
 
@@ -401,7 +488,6 @@ function AnalysisPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden p-3 gap-3">
-
       {/* Top bar */}
       <div className="flex items-center gap-3 flex-wrap shrink-0">
         <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/saved-games" })}>
@@ -418,7 +504,9 @@ function AnalysisPage() {
               <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Main line
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={clearAnnotations}>Clear</Button>
+          <Button size="sm" variant="outline" onClick={clearAnnotations}>
+            Clear
+          </Button>
           <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : "Save analysis"}
           </Button>
@@ -427,12 +515,10 @@ function AnalysisPage() {
 
       {/* Main grid */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 overflow-hidden">
-
         {/* Board card */}
         <Card ref={boardCardRef} className="p-3 overflow-hidden">
           <div className="flex flex-col items-center justify-center h-full gap-2">
             <div className="flex gap-2 items-center">
-
               {/* Eval bar */}
               <div className="flex-shrink-0" style={{ height: boardSize }}>
                 <EvalBar evaluation={evaluation} />
@@ -485,19 +571,39 @@ function AnalysisPage() {
 
             {/* Nav controls */}
             <div className="flex items-center gap-2 shrink-0">
-              <Button size="sm" variant="outline" onClick={first} disabled={currentNode.plyIndex === 0}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={first}
+                disabled={currentNode.plyIndex === 0}
+              >
                 <ChevronFirst className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="outline" onClick={prev} disabled={currentNode.plyIndex === 0}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={prev}
+                disabled={currentNode.plyIndex === 0}
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-xs text-muted-foreground font-mono w-20 text-center">
                 {currentNode.plyIndex} / {mainLine.length - 1}
               </span>
-              <Button size="sm" variant="outline" onClick={next} disabled={currentNode.children.length === 0}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={next}
+                disabled={currentNode.children.length === 0}
+              >
                 <ChevronRight className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="outline" onClick={last} disabled={currentNode.children.length === 0}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={last}
+                disabled={currentNode.children.length === 0}
+              >
                 <ChevronLast className="h-4 w-4" />
               </Button>
             </div>
@@ -507,7 +613,9 @@ function AnalysisPage() {
         {/* Right panel */}
         <div className="flex flex-col gap-3 min-h-0 overflow-hidden lg:h-full">
           <Card className="p-4 shrink-0">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">Engine</div>
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+              Engine
+            </div>
             {evaluation ? (
               <div className="space-y-2">
                 {evaluation.bestMoves.map((m, i) => {
@@ -519,18 +627,30 @@ function AnalysisPage() {
                     const promo = m.move.slice(4) || undefined;
                     const result = chess.move({ from, to, promotion: promo });
                     if (result) san = result.san;
-                  } catch { /* keep uci */ }
+                  } catch {
+                    /* keep uci */
+                  }
                   const scoreLabel =
                     m.mate !== null
                       ? `${m.mate > 0 ? "+" : "-"}M${Math.abs(m.mate)}`
                       : `${m.score >= 0 ? "+" : ""}${(m.score / 100).toFixed(1)}`;
                   return (
-                    <div key={i} className="flex items-center justify-between text-sm py-1 border-b border-border/30 last:border-0">
+                    <div
+                      key={i}
+                      className="flex items-center justify-between text-sm py-1 border-b border-border/30 last:border-0"
+                    >
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px] w-5 h-5 p-0 flex items-center justify-center">{i + 1}</Badge>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] w-5 h-5 p-0 flex items-center justify-center"
+                        >
+                          {i + 1}
+                        </Badge>
                         <span className="font-mono">{san}</span>
                       </div>
-                      <span className={`font-mono text-xs font-semibold ${m.score > 0 ? "text-emerald-600 dark:text-emerald-400" : m.score < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                      <span
+                        className={`font-mono text-xs font-semibold ${m.score > 0 ? "text-emerald-600 dark:text-emerald-400" : m.score < 0 ? "text-destructive" : "text-muted-foreground"}`}
+                      >
                         {scoreLabel}
                       </span>
                     </div>
@@ -545,7 +665,9 @@ function AnalysisPage() {
           </Card>
 
           <Card className="p-4 flex flex-col flex-1 min-h-0">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 shrink-0">Moves</div>
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 shrink-0">
+              Moves
+            </div>
             <ScrollArea className="flex-1 min-h-0">
               <table className="w-full text-xs font-mono">
                 <tbody>
@@ -584,10 +706,18 @@ function AnalysisPage() {
                             <td colSpan={3} className="py-1 pl-4 pb-2">
                               <div className="text-muted-foreground italic leading-6">
                                 {whiteVars.map((varNode) => (
-                                  <span key={varNode.id}>{"("}{renderMoveTree([varNode], currentNode.id, goToNode)}{") "}</span>
+                                  <span key={varNode.id}>
+                                    {"("}
+                                    {renderMoveTree([varNode], currentNode.id, goToNode)}
+                                    {") "}
+                                  </span>
                                 ))}
                                 {blackVars.map((varNode) => (
-                                  <span key={varNode.id}>{"("}{renderMoveTree([varNode], currentNode.id, goToNode)}{") "}</span>
+                                  <span key={varNode.id}>
+                                    {"("}
+                                    {renderMoveTree([varNode], currentNode.id, goToNode)}
+                                    {") "}
+                                  </span>
                                 ))}
                               </div>
                             </td>

@@ -19,11 +19,7 @@ const items = [
 ];
 
 // Shared nav link list used by both desktop sidebar and mobile sheet.
-function NavItems({
-  onNavigate,
-}: {
-  onNavigate?: () => void;
-}) {
+function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const loc = useLocation();
   return (
     <>
@@ -65,9 +61,7 @@ export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSideba
 
   const voiceSection = isAnalysisPage && (
     <div className="border-t border-border/40 p-4 text-center space-y-2">
-      <div className="text-xs text-muted-foreground uppercase tracking-wider">
-        Voice navigation
-      </div>
+      <div className="text-xs text-muted-foreground uppercase tracking-wider">Voice navigation</div>
       <ChessVoiceButton
         onActivate={activateChessCallback ?? (() => {})}
         isActive={isVoiceActive}
@@ -105,7 +99,6 @@ export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSideba
           className="w-72 p-0 flex flex-col bg-card/95 backdrop-blur"
           // Hide the default SheetContent close button — we provide our own
           // so the layout matches the desktop sidebar header area.
-          
         >
           {/* Header row */}
           <div className="flex items-center justify-between px-5 py-5 border-b border-border/40">
