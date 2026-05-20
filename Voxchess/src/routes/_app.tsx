@@ -1,4 +1,5 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { isSpeechSupported } from "@/lib/voice/speechRecognition";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppSidebar } from "@/components/layout/AppSidebar";
@@ -19,6 +20,17 @@ export const Route = createFileRoute("/_app")({
 function AppLayout() {
   const { user, loading } = useAuth();
   const supported = typeof window === "undefined" ? true : isSpeechSupported();
+  const navigate = useNavigate();
+
+  // Handle session expiry and cross-tab sign-out
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        navigate({ to: "/auth/login" });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   if (loading)
     return (
