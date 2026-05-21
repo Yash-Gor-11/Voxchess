@@ -146,6 +146,7 @@ function SettingsPage() {
   const theme = BOARD_THEMES[boardThemeIndex];
 
   return (
+    <div className="h-full overflow-y-auto">
     <div className="p-6 max-w-2xl space-y-6">
       <h2 className="text-lg font-semibold">Settings</h2>
 
@@ -344,5 +345,6 @@ function SettingsPage() {
         </div>
       </Card>
     </div>
+     </div>
   );
 }
