@@ -10,6 +10,7 @@ import {
   RotateCcw,
   GripIcon,
 } from "lucide-react";
+import { uciPvToSan } from "@/lib/chess/pvUtils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,12 +71,11 @@ function renderMoveTree(
         onClick={() => goToNode(node)}
         className={`px-1 py-0.5 rounded hover:bg-muted transition-colors
           ${isVariation ? "italic text-muted-foreground" : ""}
-          ${
-            currentNodeId === node.id
-              ? isVariation
-                ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold"
-                : "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-              : ""
+          ${currentNodeId === node.id
+            ? isVariation
+              ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold"
+              : "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+            : ""
           }`}
       >
         {isWhite && <span className="text-muted-foreground mr-0.5 not-italic">{moveNum}.</span>}
@@ -619,17 +619,7 @@ function AnalysisPage() {
             {evaluation ? (
               <div className="space-y-2">
                 {evaluation.bestMoves.map((m, i) => {
-                  const chess = new Chess(currentNode.fen);
-                  let san = m.move;
-                  try {
-                    const from = m.move.slice(0, 2);
-                    const to = m.move.slice(2, 4);
-                    const promo = m.move.slice(4) || undefined;
-                    const result = chess.move({ from, to, promotion: promo });
-                    if (result) san = result.san;
-                  } catch {
-                    /* keep uci */
-                  }
+                  const sanMoves = uciPvToSan(currentNode.fen, m.pv).slice(0, 6);
                   const scoreLabel =
                     m.mate !== null
                       ? `${m.mate > 0 ? "+" : "-"}M${Math.abs(m.mate)}`
@@ -637,21 +627,23 @@ function AnalysisPage() {
                   return (
                     <div
                       key={i}
-                      className="flex items-center justify-between text-sm py-1 border-b border-border/30 last:border-0"
+                      className="flex items-start gap-2 text-sm py-1 border-b border-border/30 last:border-0"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
                         <Badge
                           variant="outline"
                           className="text-[10px] w-5 h-5 p-0 flex items-center justify-center"
                         >
                           {i + 1}
                         </Badge>
-                        <span className="font-mono">{san}</span>
+                        <span
+                          className={`font-mono text-xs font-semibold w-12 ${m.score > 0 ? "text-emerald-600 dark:text-emerald-400" : m.score < 0 ? "text-destructive" : "text-muted-foreground"}`}
+                        >
+                          {scoreLabel}
+                        </span>
                       </div>
-                      <span
-                        className={`font-mono text-xs font-semibold ${m.score > 0 ? "text-emerald-600 dark:text-emerald-400" : m.score < 0 ? "text-destructive" : "text-muted-foreground"}`}
-                      >
-                        {scoreLabel}
+                      <span className="font-mono text-xs text-muted-foreground leading-relaxed">
+                        {sanMoves.join(" ")} {sanMoves.length === 6 ? "..." : ""}
                       </span>
                     </div>
                   );

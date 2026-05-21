@@ -1,8 +1,7 @@
-// In stockfish.ts — update the interface
 export interface StockfishEval {
   score: number;
   mate: number | null;
-  bestMoves: Array<{ move: string; score: number; mate: number | null }>;
+  bestMoves: Array<{ move: string; pv: string; score: number; mate: number | null }>;
   depth: number;
 }
 
@@ -14,8 +13,8 @@ export class StockfishEngine {
   private isReady = false;
   private queue: string[] = [];
   private currentFen = "";
-  private bestMoves: Array<{ move: string; score: number; scoreType: string; scoreVal: number }> =
-    [];
+  private bestMoves: Array<{ move: string; pv: string; score: number; scoreType: string; scoreVal: number }> = [];
+
   private scoreByMultiPV: Record<number, { type: string; val: number }> = {};
   private latestDepth = 0;
   private evalTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -64,23 +63,23 @@ export class StockfishEngine {
 
     const depthMatch = line.match(/depth (\d+)/);
     const scoreMatch = line.match(/score (cp|mate) (-?\d+)/);
-    const pvMatch = line.match(/ pv (\S+)/);
+    const pvMatch = line.match(/ pv (.+)/);
     const multipvMatch = line.match(/multipv (\d+)/);
-
     if (!scoreMatch || !pvMatch) return;
 
     const depth = depthMatch ? parseInt(depthMatch[1]) : 0;
     const multipv = multipvMatch ? parseInt(multipvMatch[1]) : 1;
     const scoreType = scoreMatch[1];
     const scoreVal = parseInt(scoreMatch[2]);
-    const move = pvMatch[1];
+    const pvString = pvMatch[1];
+    const move = pvString.split(" ")[0]; // first move only
 
     if (depth < 8) return;
 
     const score = scoreType === "mate" ? (scoreVal > 0 ? 10000 : -10000) : scoreVal;
 
     // Store with explicit multipv index (1-based)
-    this.bestMoves[multipv - 1] = { move, score, scoreType, scoreVal };
+    this.bestMoves[multipv - 1] = { move, pv: pvString, score, scoreType, scoreVal };
     this.scoreByMultiPV[multipv] = { type: scoreType, val: scoreVal };
     this.latestDepth = depth;
 
@@ -101,11 +100,12 @@ export class StockfishEngine {
           const moveMate = m.scoreType === "mate" ? m.scoreVal * this.activeSide : null;
           return {
             move: m.move,
+            pv: m.pv,
             score: normalizedMoveScore,
             mate: moveMate,
           };
         })
-        .filter((m): m is { move: string; score: number; mate: number | null } => m !== null);
+        .filter((m): m is { move: string; pv: string; score: number; mate: number | null } => m !== null);
 
       this.onEval?.({
         score: normalizedScore,
