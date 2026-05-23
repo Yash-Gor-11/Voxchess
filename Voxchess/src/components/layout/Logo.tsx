@@ -1,8 +1,17 @@
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 
 export function Logo({ small = false }: { small?: boolean }) {
+  const navigate = useNavigate();
+
+  const handleClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const { data: { session } } = await supabase.auth.getSession();
+    navigate({ to: session ? "/dashboard" : "/" });
+  };
+
   return (
-    <Link to="/" className="flex items-center gap-2 group">
+    <a href="#" onClick={handleClick} className="flex items-center gap-2 group">
       <span
         className="grid place-items-center rounded-md bg-[var(--brand)] text-white font-bold"
         style={{ width: small ? 24 : 28, height: small ? 24 : 28, fontSize: small ? 13 : 15 }}
@@ -13,6 +22,6 @@ export function Logo({ small = false }: { small?: boolean }) {
       <span className="font-semibold tracking-tight text-[var(--brand)] dark:text-foreground">
         Vox<span className="text-[var(--accent-blue)]">Chess</span>
       </span>
-    </Link>
+    </a>
   );
 }
