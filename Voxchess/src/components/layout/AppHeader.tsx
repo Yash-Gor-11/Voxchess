@@ -13,12 +13,14 @@ import { NavVoiceButton } from "@/components/voice/NavVoiceButton";
 import { ChessVoiceButton } from "@/components/voice/ChessVoiceButton";
 import { useVoiceStore } from "@/stores/voiceStore";
 import { supabase } from "@/integrations/supabase/client";
-
+import { useState, useEffect } from "react";
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/play": "Play",
-  "/play/pvp": "PvP",
-  "/saved-games": "Saved games",
+  "/games": "Games",
+  "/games/my-games": "My Games",
+  "/games/imported": "Imported Games",
+  "/games/studies": "Studies",
   "/settings": "Settings",
   "/profile": "Profile",
 };
@@ -36,7 +38,17 @@ export function AppHeader({ email, onMenuClick }: AppHeaderProps) {
   const isVoiceActive = activeMode === "chess";
 
   const title = TITLES[loc.pathname] ?? (isAnalysisPage ? "Analysis" : "VoxChess");
+  const [isPortrait, setIsPortrait] = useState(
+  typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false
+);
 
+useEffect(() => {
+  function onResize() {
+    setIsPortrait(window.innerWidth < window.innerHeight);
+  }
+  window.addEventListener("resize", onResize);
+  return () => window.removeEventListener("resize", onResize);
+}, []);
   return (
     <header className="h-16 border-b border-border/40 bg-background/70 backdrop-blur flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-3">
@@ -44,7 +56,7 @@ export function AppHeader({ email, onMenuClick }: AppHeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className={`${isPortrait ? "flex" : "md:hidden"}`}
           onClick={onMenuClick}
           aria-label="Open navigation"
         >

@@ -9,16 +9,18 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut } from "lucide-react";
-
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { SheetTitle } from "@/components/ui/sheet";
+import { useState, useEffect } from "react";
 const items = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/play", label: "Play", icon: Swords },
-  { to: "/saved-games", label: "Saved games", icon: BookmarkCheck },
+  // Points to /games — the three-folder landing page
+  { to: "/games", label: "Games", icon: BookmarkCheck },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/profile", label: "Profile", icon: User },
 ];
 
-// Shared nav link list used by both desktop sidebar and mobile sheet.
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const loc = useLocation();
   return (
@@ -28,16 +30,16 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
         const active = loc.pathname.startsWith(it.to);
         return (
           <Link
-            key={it.to}
-            to={it.to}
+          key={it.to}
+          to={it.to}
             onClick={onNavigate}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
               active
                 ? "bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] font-medium"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-            )}
-          >
+              )}
+              >
             <Icon className="h-4 w-4" />
             {it.label}
           </Link>
@@ -58,12 +60,23 @@ export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSideba
   const isAnalysisPage = loc.pathname.startsWith("/analysis");
   const { activeMode, activateChessCallback } = useVoiceStore();
   const isVoiceActive = activeMode === "chess";
-
+  const [isPortrait, setIsPortrait] = useState(
+    typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false
+  );
+  
+  useEffect(() => {
+    function onResize() {
+      setIsPortrait(window.innerWidth < window.innerHeight);
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  
   const voiceSection = isAnalysisPage && (
     <div className="border-t border-border/40 p-4 text-center space-y-2">
       <div className="text-xs text-muted-foreground uppercase tracking-wider">Voice navigation</div>
       <ChessVoiceButton
-        onActivate={activateChessCallback ?? (() => {})}
+        onActivate={activateChessCallback ?? (() => { })}
         isActive={isVoiceActive}
         enabled={!!activateChessCallback}
       />
@@ -79,7 +92,7 @@ export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSideba
   return (
     <>
       {/* ── Desktop sidebar ── always visible on md+ ── */}
-      <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-border/40 bg-card/40">
+      <aside className={`hidden flex-col w-60 shrink-0 border-r border-border/40 bg-card/40 ${!isPortrait ? "md:flex" : ""}`}>
         <div className="px-5 py-5">
           <Logo />
         </div>
@@ -97,9 +110,10 @@ export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSideba
         <SheetContent
           side="left"
           className="w-72 p-0 flex flex-col bg-card/95 backdrop-blur"
-          // Hide the default SheetContent close button — we provide our own
-          // so the layout matches the desktop sidebar header area.
         >
+          <VisuallyHidden>
+            <SheetTitle>Navigation</SheetTitle>
+          </VisuallyHidden>
           {/* Header row */}
           <div className="flex items-center justify-between px-5 py-5 border-b border-border/40">
             <Logo />
@@ -113,7 +127,7 @@ export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSideba
             </Button>
           </div>
 
-          {/* Nav links — close sheet on navigate */}
+          {/* Nav links */}
           <nav className="flex-1 px-3 pt-3 space-y-1 overflow-y-auto">
             <NavItems onNavigate={() => setMobileNavOpen(false)} />
           </nav>
@@ -121,7 +135,7 @@ export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSideba
           {/* Voice section (analysis page only) */}
           {voiceSection}
 
-          {/* Footer — email + sign out */}
+          {/* Footer */}
           <div className="border-t border-border/40 p-4 flex items-center justify-between gap-2">
             <div className="text-xs text-muted-foreground truncate">{email ?? "Signed in"}</div>
             <Button

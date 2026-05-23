@@ -1,10 +1,65 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export async function saveGame(pgn: string, result: string = "ongoing") {
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GameType = "platform" | "imported" | "study_chapter";
+
+export interface GameMetadata {
+  // PGN header fields (populated on import)
+  White?: string;
+  Black?: string;
+  Event?: string;
+  Date?: string;
+  // FEN position fields (populated on position save)
+  name?: string;
+  note?: string;
+}
+
+export interface Game {
+  id: string;
+  white_id: string;
+  black_id: string | null;
+  pgn: string;
+  result: string | null;
+  mode: string;
+  type: GameType;
+  metadata: GameMetadata | null;
+  study_id: string | null;
+  fen: string | null;
+  chapter_index: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Study {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  // Hydrated client-side after fetching chapters
+  chapterCount?: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function currentUser() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
+  return user;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Games — existing (unchanged behaviour, updated return type)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function saveGame(pgn: string, result: string = "ongoing"): Promise<Game> {
+  const user = await currentUser();
 
   const { data, error } = await supabase
     .from("games")
@@ -13,19 +68,18 @@ export async function saveGame(pgn: string, result: string = "ongoing") {
       pgn,
       result,
       mode: "solo",
+      type: "platform",
     })
     .select()
     .single();
 
   if (error) throw error;
-  return data;
+  return data as Game;
 }
 
-export async function getGames() {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return [];
+/** Returns ALL games the user owns — used internally. */
+export async function getGames(): Promise<Game[]> {
+  const user = await currentUser();
 
   const { data, error } = await supabase
     .from("games")
@@ -34,16 +88,41 @@ export async function getGames() {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as Game[];
 }
 
-export async function deleteGame(id: string) {
-  // FIX (High): scope delete to the current user so one user can never
-  // delete another user's game even if RLS is misconfigured.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+/** Returns only platform games (played on VoxChess). */
+export async function getPlatformGames(): Promise<Game[]> {
+  const user = await currentUser();
+
+  const { data, error } = await supabase
+    .from("games")
+    .select("*")
+    .or(`white_id.eq.${user.id},black_id.eq.${user.id}`)
+    .eq("type", "platform")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as Game[];
+}
+
+/** Returns imported games and saved FEN positions (type = 'imported'). */
+export async function getImportedGames(): Promise<Game[]> {
+  const user = await currentUser();
+
+  const { data, error } = await supabase
+    .from("games")
+    .select("*")
+    .eq("white_id", user.id)
+    .eq("type", "imported")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as Game[];
+}
+
+export async function deleteGame(id: string): Promise<void> {
+  const user = await currentUser();
 
   const { error } = await supabase
     .from("games")
@@ -54,12 +133,8 @@ export async function deleteGame(id: string) {
   if (error) throw error;
 }
 
-export async function getGame(id: string) {
-  // FIX (High): scope read to the current user for the same reason.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+export async function getGame(id: string): Promise<Game> {
+  const user = await currentUser();
 
   const { data, error } = await supabase
     .from("games")
@@ -69,5 +144,112 @@ export async function getGame(id: string) {
     .single();
 
   if (error) throw error;
-  return data;
+  return data as Game;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Studies
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getStudies(): Promise<Study[]> {
+  const user = await currentUser();
+
+  const { data, error } = await supabase
+    .from("studies")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const studies = (data ?? []) as Study[];
+
+  // Hydrate chapter counts in a single query
+  if (studies.length > 0) {
+    const ids = studies.map((s) => s.id);
+    const { data: chapters } = await supabase
+      .from("games")
+      .select("study_id")
+      .in("study_id", ids)
+      .eq("type", "study_chapter");
+
+    const counts: Record<string, number> = {};
+    for (const c of chapters ?? []) {
+      if (!c.study_id) continue;
+      counts[c.study_id] = (counts[c.study_id] ?? 0) + 1;
+    }
+    for (const s of studies) {
+      s.chapterCount = counts[s.id] ?? 0;
+    }
+  }
+
+  return studies;
+}
+
+export async function getStudy(id: string): Promise<Study> {
+  const user = await currentUser();
+
+  const { data, error } = await supabase
+    .from("studies")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+
+  if (error) throw error;
+  return data as Study;
+}
+
+export async function createStudy(name: string): Promise<Study> {
+  const user = await currentUser();
+
+  const { data, error } = await supabase
+    .from("studies")
+    .insert({ user_id: user.id, name })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Study;
+}
+
+export async function renameStudy(id: string, name: string): Promise<void> {
+  const user = await currentUser();
+
+  const { error } = await supabase
+    .from("studies")
+    .update({ name })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) throw error;
+}
+
+export async function deleteStudy(id: string): Promise<void> {
+  const user = await currentUser();
+
+  // Chapters are deleted via ON DELETE CASCADE on study_id FK
+  const { error } = await supabase
+    .from("studies")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) throw error;
+}
+
+/** Returns all chapters for a study, ordered by chapter_index. */
+export async function getStudyChapters(studyId: string): Promise<Game[]> {
+  const user = await currentUser();
+
+  const { data, error } = await supabase
+    .from("games")
+    .select("*")
+    .eq("study_id", studyId)
+    .eq("white_id", user.id)
+    .eq("type", "study_chapter")
+    .order("chapter_index", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as Game[];
 }
