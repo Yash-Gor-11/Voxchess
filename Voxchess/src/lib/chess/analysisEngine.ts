@@ -11,6 +11,7 @@ export interface TreeNode {
   highlights: string[];
   isMainLine: boolean;
   plyIndex: number;
+  comment?: string;
 }
 
 export interface SerializedNode {
@@ -23,6 +24,7 @@ export interface SerializedNode {
   isMainLine: boolean;
   plyIndex: number;
   children: SerializedNode[];
+  comment?: string;
 }
 function generateId() {
   return Math.random().toString(36).slice(2, 9);
@@ -212,6 +214,7 @@ export class AnalysisTree {
       highlights: node.highlights,
       isMainLine: node.isMainLine,
       plyIndex: node.plyIndex,
+      comment: node.comment,
       children: node.children.map(serializeNode),
     });
     return serializeNode(this.root);
@@ -229,6 +232,7 @@ export class AnalysisTree {
       highlights: data.highlights ?? [],
       isMainLine: data.isMainLine,
       plyIndex: data.plyIndex,
+      comment: data.comment, 
     };
     node.children = (data.children ?? []).map((c) => AnalysisTree.deserialize(c, node));
     return node;

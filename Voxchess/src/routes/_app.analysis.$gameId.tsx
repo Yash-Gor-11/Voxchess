@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   RotateCcw,
   GripIcon,
+  MessageSquare,
 } from "lucide-react";
 import { uciPvToSan } from "@/lib/chess/pvUtils";
 import { Card } from "@/components/ui/card";
@@ -108,8 +109,8 @@ function calcInitialBoardSize(): number {
   const vh = window.innerHeight;
   const isPortrait = vw < vh;
   if (isPortrait) {
-  return Math.min(Math.max(vw - 80, 180), 500);
-}
+    return Math.min(Math.max(vw - 80, 180), 500);
+  }
   const sidebarW = vw >= 768 ? 240 : 0;
   const rightPanelW = vw >= 1024 ? 316 : 0;
   const evalBarW = 40;
@@ -133,13 +134,17 @@ function AnalysisPage() {
   const [highlights, setHighlights] = useState<string[]>([]);
   const [rightClickFrom, setRightClickFrom] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // Add inside AnalysisPage(), near the other useState calls
   const [isPortrait, setIsPortrait] = useState(
     typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false,
   );
-  // Board size — starts from viewport math, overridden by drag
   const [boardSize, setBoardSize] = useState(calcInitialBoardSize);
-
+  const [contextMenu, setContextMenu] = useState<{
+    x: number; y: number; node: TreeNode;
+  } | null>(null);
+  const [commentModal, setCommentModal] = useState<{
+    node: TreeNode; text: string;
+  } | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Card ref used to clamp drag max to card's inner dimensions
   const boardCardRef = useRef<HTMLDivElement>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
@@ -470,7 +475,37 @@ function AnalysisPage() {
     treeRef.current?.setArrows([]);
     treeRef.current?.setHighlights([]);
   }
+  function startLongPress(node: TreeNode, e: React.PointerEvent) {
+    longPressTimerRef.current = setTimeout(() => {
+      setContextMenu({ x: e.clientX, y: e.clientY, node });
+    }, 500);
+  }
 
+  function cancelLongPress() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function openContextMenu(node: TreeNode, e: React.MouseEvent) {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, node });
+  }
+
+  async function handleSaveComment(node: TreeNode, text: string) {
+    node.comment = text.trim() || undefined;
+    setRevision((r) => r + 1);
+    setCommentModal(null);
+    setContextMenu(null);
+    if (!treeRef.current) return;
+    try {
+      await saveAnnotations(gameId, treeRef.current.serialize());
+      toast.success("Comment saved");
+    } catch {
+      toast.error("Could not save comment");
+    }
+  }
   async function handleSave() {
     if (!treeRef.current) return;
     setSaving(true);
@@ -704,59 +739,131 @@ function AnalysisPage() {
                       const blackNode = mainLine[i * 2 + 2];
                       const whiteVars = whiteNode?.parent?.children.slice(1) ?? [];
                       const blackVars = blackNode?.parent?.children.slice(1) ?? [];
+                      const wComment = whiteNode?.comment;
+                      const bComment = blackNode?.comment;
+
+                      const makeMoveTd = (node: TreeNode | undefined, colSpan = 1) =>
+                        node ? (
+                          <td className={`py-1 pr-2 ${colSpan === 2 ? "w-[90%]" : "w-[45%]"}`} colSpan={colSpan}>
+                            <button
+                              onClick={() => goToNode(node)}
+                              onContextMenu={(e) => openContextMenu(node, e)}
+                              onPointerDown={(e) => startLongPress(node, e)}
+                              onPointerUp={cancelLongPress}
+                              onPointerCancel={cancelLongPress}
+                              className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${currentNode.id === node.id
+                                ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+                                : ""
+                                }`}
+                            >
+                              {node.san}
+                            </button>
+                          </td>
+                        ) : (
+                          <td colSpan={colSpan} />
+                        );
+
+                      const commentRow = (node: TreeNode) => (
+                        <tr key={`comment-${node.id}`}>
+                          <td colSpan={3} className="pb-1.5 px-1">
+                            <div
+                              className="text-[11px] text-muted-foreground italic leading-relaxed bg-muted/40 rounded px-2 py-1 cursor-pointer hover:bg-muted/70 transition-colors"
+                              onContextMenu={(e) => openContextMenu(node, e)}
+                              onPointerDown={(e) => startLongPress(node, e)}
+                              onPointerUp={cancelLongPress}
+                              onPointerCancel={cancelLongPress}
+                            >
+                              <MessageSquare className="inline h-3 w-3 mr-1 opacity-60" />
+                              {node.comment}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+
+                      const varRow = (whiteVars.length > 0 || blackVars.length > 0) && (
+                        <tr key={`vars-${i}`}>
+                          <td colSpan={3} className="py-1 pl-4 pb-2">
+                            <div className="text-muted-foreground italic leading-6">
+                              {whiteVars.map((v) => (
+                                <span key={v.id}>{"("}{renderMoveTree([v], currentNode.id, goToNode)}{") "}</span>
+                              ))}
+                              {blackVars.map((v) => (
+                                <span key={v.id}>{"("}{renderMoveTree([v], currentNode.id, goToNode)}{") "}</span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+
+                      // Case 1: no comments — normal paired row
+                      if (!wComment && !bComment) {
+                        return (
+                          <Fragment key={i}>
+                            <tr className="border-b border-border/20 last:border-0">
+                              <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
+                              {makeMoveTd(whiteNode)}
+                              {makeMoveTd(blackNode)}
+                            </tr>
+                            {varRow}
+                          </Fragment>
+                        );
+                      }
+
+                      // Case 2: white has comment, black doesn't
+                      if (wComment && !bComment) {
+                        return (
+                          <Fragment key={i}>
+                            <tr className="border-b border-border/20">
+                              <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
+                              {makeMoveTd(whiteNode)}
+                              <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
+                            </tr>
+                            {commentRow(whiteNode)}
+                            {blackNode && (
+                              <tr className="border-b border-border/20 last:border-0">
+                                <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}…</td>
+                                <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
+                                {makeMoveTd(blackNode)}
+                              </tr>
+                            )}
+                            {varRow}
+                          </Fragment>
+                        );
+                      }
+
+                      // Case 3: black has comment, white doesn't
+                      if (!wComment && bComment) {
+                        return (
+                          <Fragment key={i}>
+                            <tr className="border-b border-border/20">
+                              <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
+                              {makeMoveTd(whiteNode)}
+                              {makeMoveTd(blackNode)}
+                            </tr>
+                            {commentRow(blackNode!)}
+                            {varRow}
+                          </Fragment>
+                        );
+                      }
+
+                      // Case 4: both have comments
                       return (
                         <Fragment key={i}>
-                          <tr className="border-b border-border/20 last:border-0">
+                          <tr className="border-b border-border/20">
                             <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
-                            <td className="py-1 pr-2 w-[45%]">
-                              {whiteNode && (
-                                <button
-                                  onClick={() => goToNode(whiteNode)}
-                                  className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${currentNode.id === whiteNode.id
-                                    ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-                                    : ""
-                                    }`}
-                                >
-                                  {whiteNode.san}
-                                </button>
-                              )}
-                            </td>
-                            <td className="py-1 w-[45%]">
-                              {blackNode && (
-                                <button
-                                  onClick={() => goToNode(blackNode)}
-                                  className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${currentNode.id === blackNode.id
-                                    ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-                                    : ""
-                                    }`}
-                                >
-                                  {blackNode.san}
-                                </button>
-                              )}
-                            </td>
+                            {makeMoveTd(whiteNode)}
+                            <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
                           </tr>
-                          {(whiteVars.length > 0 || blackVars.length > 0) && (
-                            <tr>
-                              <td colSpan={3} className="py-1 pl-4 pb-2">
-                                <div className="text-muted-foreground italic leading-6">
-                                  {whiteVars.map((varNode) => (
-                                    <span key={varNode.id}>
-                                      {"("}
-                                      {renderMoveTree([varNode], currentNode.id, goToNode)}
-                                      {") "}
-                                    </span>
-                                  ))}
-                                  {blackVars.map((varNode) => (
-                                    <span key={varNode.id}>
-                                      {"("}
-                                      {renderMoveTree([varNode], currentNode.id, goToNode)}
-                                      {") "}
-                                    </span>
-                                  ))}
-                                </div>
-                              </td>
+                          {commentRow(whiteNode!)}
+                          {blackNode && (
+                            <tr className="border-b border-border/20">
+                              <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}…</td>
+                              <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
+                              {makeMoveTd(blackNode)}
                             </tr>
                           )}
+                          {commentRow(blackNode!)}
+                          {varRow}
                         </Fragment>
                       );
                     },
@@ -767,6 +874,82 @@ function AnalysisPage() {
           </Card>
         </div>
       </div>
+      {/* Context menu */}
+      {contextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setContextMenu(null)}
+          />
+          <div
+            className="fixed z-50 bg-card border border-border rounded-md shadow-md py-1 text-sm"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+          >
+            <button
+              className="w-full text-left px-4 py-2 hover:bg-muted transition-colors"
+              onClick={() =>
+                setCommentModal({ node: contextMenu.node, text: contextMenu.node.comment ?? "" })
+              }
+            >
+              {contextMenu.node.comment ? "Edit comment" : "Add comment"}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Comment modal */}
+      {commentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card border border-border rounded-xl shadow-xl p-5 w-80 flex flex-col gap-3">
+            <div className="text-sm font-medium">
+              {commentModal.node.comment ? "Edit comment" : "Add comment"}
+              <span className="text-muted-foreground font-normal ml-2 text-xs">
+                — move {Math.ceil(commentModal.node.plyIndex / 2)}
+                {commentModal.node.plyIndex % 2 === 1 ? " (White)" : " (Black)"}
+              </span>
+            </div>
+            <textarea
+              autoFocus
+              className="w-full rounded-md border border-border bg-background text-sm p-2 resize-none focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
+              rows={3}
+              placeholder="Write a comment…"
+              value={commentModal.text}
+              onChange={(e) => setCommentModal({ ...commentModal, text: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey))
+                  handleSaveComment(commentModal.node, commentModal.text);
+                if (e.key === "Escape") setCommentModal(null);
+              }}
+            />
+            <div className="flex justify-between gap-2">
+              <div>
+                {commentModal.node.comment && (
+                  <button
+                    className="text-sm px-3 py-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-colors"
+                    onClick={() => handleSaveComment(commentModal.node, "")}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  className="text-sm px-3 py-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+                  onClick={() => setCommentModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="text-sm px-4 py-1.5 rounded-md bg-[var(--accent-blue)] text-white hover:opacity-90 transition-opacity"
+                  onClick={() => handleSaveComment(commentModal.node, commentModal.text)}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
