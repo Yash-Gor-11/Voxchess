@@ -1,5 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { User, Trophy, Swords, Minus, TrendingUp, LineChart } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,14 +34,12 @@ function ProfilePage() {
         } = await supabase.auth.getUser();
         if (authError || !user) return;
         setUser(user);
-
         const { data: dbData, error: dbError } = await supabase
           .from("users")
           .select("*")
           .eq("id", user.id)
           .single();
         if (!dbError) setDbUser(dbData);
-
         const g = await getGames();
         setGames(g);
       } catch {
@@ -73,58 +72,58 @@ function ProfilePage() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <h2 className="text-lg font-semibold">Profile</h2>
+    <div className="h-full overflow-y-auto">
+      <div className="p-6 max-w-4xl mx-auto space-y-6">
+        <h2 className="text-lg font-semibold">Profile</h2>
 
-      <Card className="p-6">
-        <div className="flex items-center gap-5">
-          <Avatar className="h-16 w-16">
-            <AvatarFallback className="text-xl bg-[var(--accent-blue)] text-white">
-              <User className="h-8 w-8" />
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <div className="text-xl font-semibold">{loading ? "—" : displayName}</div>
-            <div className="text-sm text-muted-foreground mt-0.5">{user?.email}</div>
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="outline">Member since {memberSince}</Badge>
-              <Badge variant="secondary">Rating {loading ? "—" : (dbUser?.rating ?? 1200)}</Badge>
+        <Card className="p-6">
+          <div className="flex items-center gap-5">
+            <Avatar className="h-16 w-16">
+              <AvatarFallback className="text-xl bg-[var(--accent-blue)] text-white">
+                <User className="h-8 w-8" />
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="text-xl font-semibold">{loading ? "—" : displayName}</div>
+              <div className="text-sm text-muted-foreground mt-0.5">{user?.email}</div>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <Badge variant="outline">Member since {memberSince}</Badge>
+                <Badge variant="secondary">Rating {loading ? "—" : (dbUser?.rating ?? 1200)}</Badge>
+              </div>
             </div>
           </div>
+        </Card>
+
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          {stats.map((s) => {
+            const Icon = s.icon;
+            return (
+              <Card key={s.label} className="p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">{s.label}</span>
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="text-2xl font-semibold">{loading ? "—" : s.value}</div>
+              </Card>
+            );
+          })}
         </div>
-      </Card>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        {stats.map((s) => {
-          const Icon = s.icon;
-          return (
-            <Card key={s.label} className="p-5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-muted-foreground">{s.label}</span>
-                <Icon className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="text-2xl font-semibold">{loading ? "—" : s.value}</div>
-            </Card>
-          );
-        })}
-      </div>
-
-      <Card className="p-5">
-        <div className="text-sm font-medium mb-4">Recent games</div>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : games.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No games yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {games.slice(0, 8).map((g) => {
-              const moveCount = countMovesFromPgn(g.pgn);
-              return (
-                <div
-                  key={g.id}
-                  className="flex items-center justify-between py-2 border-b border-border/40 last:border-0"
-                >
-                  <div className="flex items-center gap-3">
+        <Card className="p-5">
+          <div className="text-sm font-medium mb-4">Recent games</div>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : games.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No games yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {games.slice(0, 8).map((g) => {
+                const moveCount = countMovesFromPgn(g.pgn);
+                return (
+                  <div
+                    key={g.id}
+                    className="flex items-center justify-between py-2 border-b border-border/40 last:border-0"
+                  >
                     <div>
                       <div className="text-sm font-medium">
                         {new Date(g.created_at).toLocaleDateString("en-US", {
@@ -137,36 +136,34 @@ function ProfilePage() {
                         {moveCount} moves · {g.mode}
                       </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={
+                          g.result === "white"
+                            ? "default"
+                            : g.result === "black"
+                              ? "destructive"
+                              : "secondary"
+                        }
+                      >
+                        {g.result ?? "ongoing"}
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })}
+                      >
+                        <LineChart className="h-3.5 w-3.5 mr-1.5" />
+                        Analyse
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant={
-                        g.result === "white"
-                          ? "default"
-                          : g.result === "black"
-                            ? "destructive"
-                            : "secondary"
-                      }
-                    >
-                      {g.result ?? "ongoing"}
-                    </Badge>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })
-                      }
-                    >
-                      <LineChart className="h-3.5 w-3.5 mr-1.5" />
-                      Analyse
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

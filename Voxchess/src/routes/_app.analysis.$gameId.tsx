@@ -101,24 +101,21 @@ function renderMoveTree(
 }
 
 // Compute initial board size from viewport dimensions.
+
 function calcInitialBoardSize(): number {
   if (typeof window === "undefined") return 480;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const headerH = 64;
-  const topBarH = 76;
-  const navCtrlH = 52;
-  const cardPadding = 24;
-  const pagePadding = 24;
-  const availH = vh - headerH - topBarH - navCtrlH - cardPadding - pagePadding;
-  let availW: number;
-  if (vw >= 1024) {
-    availW = vw - 240 - 312 - 32 - cardPadding - pagePadding - 16;
-  } else if (vw >= 768) {
-    availW = vw - 240 - 32 - cardPadding - pagePadding;
-  } else {
-    availW = vw - 32 - cardPadding - pagePadding;
-  }
+  const isPortrait = vw < vh;
+  if (isPortrait) {
+  return Math.min(Math.max(vw - 80, 180), 500);
+}
+  const sidebarW = vw >= 768 ? 240 : 0;
+  const rightPanelW = vw >= 1024 ? 316 : 0;
+  const evalBarW = 40;
+  const padding = 48;
+  const availW = vw - sidebarW - rightPanelW - evalBarW - padding;
+  const availH = vh - 64 - 40 - 52 - 52 - padding; // header, voicebar, topbar, navctrl, padding
   return Math.min(Math.max(Math.min(availH, availW), 180), 600);
 }
 
@@ -136,7 +133,10 @@ function AnalysisPage() {
   const [highlights, setHighlights] = useState<string[]>([]);
   const [rightClickFrom, setRightClickFrom] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
+  // Add inside AnalysisPage(), near the other useState calls
+  const [isPortrait, setIsPortrait] = useState(
+    typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false,
+  );
   // Board size — starts from viewport math, overridden by drag
   const [boardSize, setBoardSize] = useState(calcInitialBoardSize);
 
@@ -150,8 +150,13 @@ function AnalysisPage() {
 
   // Recalculate initial size on window resize (only when user hasn't manually dragged)
   const userResizedRef = useRef(false);
+  // Replace the existing resize useEffect with this single one
   useEffect(() => {
     function onResize() {
+      const portrait = window.innerWidth < window.innerHeight;
+      setIsPortrait(portrait);
+      // Reset user resize flag when switching to portrait — no drag handle in portrait
+      if (portrait) userResizedRef.current = false;
       if (!userResizedRef.current) {
         setBoardSize(calcInitialBoardSize());
       }
@@ -486,45 +491,59 @@ function AnalysisPage() {
   const isOnMainLine = currentNode.isMainLine;
   const moveNumber = Math.ceil(currentNode.plyIndex / 2);
 
+  // Replace the entire return with this
   return (
-    <div className="flex flex-col h-full overflow-hidden p-3 gap-3">
+    <div className={`flex flex-col p-3 gap-3 ${isPortrait ? "h-full overflow-y-auto" : "h-full overflow-hidden"}`}>
       {/* Top bar */}
-      <div className="flex items-center gap-3 flex-wrap shrink-0">
-        <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/saved-games" })}>
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
           <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
         </Button>
         <h2 className="text-base font-semibold">Analysis</h2>
-        <Badge variant="outline">
+        <Badge variant="outline" className="hidden sm:inline-flex">
           {currentNode.plyIndex === 0 ? "Start" : `Move ${moveNumber}`}
         </Badge>
-        {!isOnMainLine && <Badge variant="secondary">Variation</Badge>}
-        <div className="ml-auto flex gap-2">
+        {!isOnMainLine && <Badge variant="secondary" className="hidden sm:inline-flex">Variation</Badge>}
+        <div className="ml-auto flex gap-2 shrink-0">
           {!isOnMainLine && (
             <Button size="sm" variant="outline" onClick={backToMainLine}>
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Main line
+              <RotateCcw className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Main line</span>
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={clearAnnotations}>
             Clear
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving…" : "Save analysis"}
+            {saving ? "Saving…" : "Save"}
           </Button>
         </div>
       </div>
 
       {/* Main grid */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 overflow-hidden">
+      <div
+        className={
+          isPortrait
+            ? "flex flex-col gap-3"
+            : "flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 overflow-hidden"
+        }
+      >
         {/* Board card */}
-        <Card ref={boardCardRef} className="p-3 overflow-hidden">
-          <div className="flex flex-col items-center justify-center h-full gap-2">
+        <Card
+          ref={boardCardRef}
+          className={`p-3 ${isPortrait ? "shrink-0" : "overflow-hidden"}`}
+        >
+          <div
+            className={`flex flex-col items-center gap-2 ${isPortrait ? "" : "justify-center h-full"
+              }`}
+          >
             <div className="flex gap-2 items-center">
               {/* Eval bar */}
               <div className="flex-shrink-0" style={{ height: boardSize }}>
                 <EvalBar evaluation={evaluation} />
               </div>
 
-              {/* Board + drag handle */}
+              {/* Board */}
               <div className="relative flex-shrink-0">
                 <div
                   ref={boardContainerRef}
@@ -556,16 +575,18 @@ function AnalysisPage() {
                   />
                 </div>
 
-                {/* Drag handle — bottom-right corner of the board */}
-                <div
-                  className="absolute bottom-0 right-0 z-20 w-6 h-6 flex items-center justify-center rounded-tl-md bg-background/80 border border-border/50 cursor-nwse-resize opacity-40 hover:opacity-100 transition-opacity touch-none select-none"
-                  onPointerDown={onDragHandlePointerDown}
-                  onPointerMove={onDragHandlePointerMove}
-                  onPointerUp={onDragHandlePointerUp}
-                  title="Drag to resize board"
-                >
-                  <GripIcon className="w-3 h-3 text-muted-foreground" />
-                </div>
+                {/* Drag handle — landscape only */}
+                {!isPortrait && (
+                  <div
+                    className="absolute bottom-0 right-0 z-20 w-6 h-6 flex items-center justify-center rounded-tl-md bg-background/80 border border-border/50 cursor-nwse-resize opacity-40 hover:opacity-100 transition-opacity touch-none select-none"
+                    onPointerDown={onDragHandlePointerDown}
+                    onPointerMove={onDragHandlePointerMove}
+                    onPointerUp={onDragHandlePointerUp}
+                    title="Drag to resize board"
+                  >
+                    <GripIcon className="w-3 h-3 text-muted-foreground" />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -611,7 +632,11 @@ function AnalysisPage() {
         </Card>
 
         {/* Right panel */}
-        <div className="flex flex-col gap-3 min-h-0 overflow-hidden lg:h-full">
+        <div
+          className={`flex flex-col gap-3 ${isPortrait ? "" : "min-h-0 overflow-hidden lg:h-full"
+            }`}
+        >
+          {/* Engine card */}
           <Card className="p-4 shrink-0">
             <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
               Engine
@@ -637,7 +662,12 @@ function AnalysisPage() {
                           {i + 1}
                         </Badge>
                         <span
-                          className={`font-mono text-xs font-semibold w-12 ${m.score > 0 ? "text-emerald-600 dark:text-emerald-400" : m.score < 0 ? "text-destructive" : "text-muted-foreground"}`}
+                          className={`font-mono text-xs font-semibold w-12 ${m.score > 0
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : m.score < 0
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                            }`}
                         >
                           {scoreLabel}
                         </span>
@@ -656,68 +686,81 @@ function AnalysisPage() {
             )}
           </Card>
 
-          <Card className="p-4 flex flex-col flex-1 min-h-0">
+          {/* Moves card */}
+          <Card
+            className={`p-4 flex flex-col ${isPortrait ? "min-h-64" : "flex-1 min-h-0"
+              }`}
+          >
             <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 shrink-0">
               Moves
             </div>
-            <ScrollArea className="flex-1 min-h-0">
+            <ScrollArea className={isPortrait ? "h-64" : "flex-1 min-h-0"}>
               <table className="w-full text-xs font-mono">
                 <tbody>
-                  {Array.from({ length: Math.ceil((mainLine.length - 1) / 2) }, (_, i) => {
-                    const whiteNode = mainLine[i * 2 + 1];
-                    const blackNode = mainLine[i * 2 + 2];
-                    const whiteVars = whiteNode?.parent?.children.slice(1) ?? [];
-                    const blackVars = blackNode?.parent?.children.slice(1) ?? [];
-                    return (
-                      <Fragment key={i}>
-                        <tr className="border-b border-border/20 last:border-0">
-                          <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
-                          <td className="py-1 pr-2 w-[45%]">
-                            {whiteNode && (
-                              <button
-                                onClick={() => goToNode(whiteNode)}
-                                className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${currentNode.id === whiteNode.id ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold" : ""}`}
-                              >
-                                {whiteNode.san}
-                              </button>
-                            )}
-                          </td>
-                          <td className="py-1 w-[45%]">
-                            {blackNode && (
-                              <button
-                                onClick={() => goToNode(blackNode)}
-                                className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${currentNode.id === blackNode.id ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold" : ""}`}
-                              >
-                                {blackNode.san}
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                        {(whiteVars.length > 0 || blackVars.length > 0) && (
-                          <tr>
-                            <td colSpan={3} className="py-1 pl-4 pb-2">
-                              <div className="text-muted-foreground italic leading-6">
-                                {whiteVars.map((varNode) => (
-                                  <span key={varNode.id}>
-                                    {"("}
-                                    {renderMoveTree([varNode], currentNode.id, goToNode)}
-                                    {") "}
-                                  </span>
-                                ))}
-                                {blackVars.map((varNode) => (
-                                  <span key={varNode.id}>
-                                    {"("}
-                                    {renderMoveTree([varNode], currentNode.id, goToNode)}
-                                    {") "}
-                                  </span>
-                                ))}
-                              </div>
+                  {Array.from(
+                    { length: Math.ceil((mainLine.length - 1) / 2) },
+                    (_, i) => {
+                      const whiteNode = mainLine[i * 2 + 1];
+                      const blackNode = mainLine[i * 2 + 2];
+                      const whiteVars = whiteNode?.parent?.children.slice(1) ?? [];
+                      const blackVars = blackNode?.parent?.children.slice(1) ?? [];
+                      return (
+                        <Fragment key={i}>
+                          <tr className="border-b border-border/20 last:border-0">
+                            <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
+                            <td className="py-1 pr-2 w-[45%]">
+                              {whiteNode && (
+                                <button
+                                  onClick={() => goToNode(whiteNode)}
+                                  className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${currentNode.id === whiteNode.id
+                                    ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+                                    : ""
+                                    }`}
+                                >
+                                  {whiteNode.san}
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-1 w-[45%]">
+                              {blackNode && (
+                                <button
+                                  onClick={() => goToNode(blackNode)}
+                                  className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${currentNode.id === blackNode.id
+                                    ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
+                                    : ""
+                                    }`}
+                                >
+                                  {blackNode.san}
+                                </button>
+                              )}
                             </td>
                           </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
+                          {(whiteVars.length > 0 || blackVars.length > 0) && (
+                            <tr>
+                              <td colSpan={3} className="py-1 pl-4 pb-2">
+                                <div className="text-muted-foreground italic leading-6">
+                                  {whiteVars.map((varNode) => (
+                                    <span key={varNode.id}>
+                                      {"("}
+                                      {renderMoveTree([varNode], currentNode.id, goToNode)}
+                                      {") "}
+                                    </span>
+                                  ))}
+                                  {blackVars.map((varNode) => (
+                                    <span key={varNode.id}>
+                                      {"("}
+                                      {renderMoveTree([varNode], currentNode.id, goToNode)}
+                                      {") "}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    },
+                  )}
                 </tbody>
               </table>
             </ScrollArea>
