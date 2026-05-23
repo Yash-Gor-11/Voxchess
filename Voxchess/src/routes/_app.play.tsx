@@ -15,7 +15,8 @@ import { useChessVoice } from "@/hooks/useChessVoice";
 import { useStockfish } from "@/hooks/useStockfish";
 import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 import { saveGame } from "@/lib/supabase/games";
-
+import { PromotionPickerModal } from "@/components/chess/PromotionPickerModal";
+import { Chess } from "chess.js";
 export const Route = createFileRoute("/_app/play")({
   head: () => ({
     meta: [{ title: "Play — VoxChess" }],
@@ -86,7 +87,9 @@ function PlayPage() {
   const [isPortrait, setIsPortrait] = useState(
     typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false,
   );
-
+  const [pendingPromotion, setPendingPromotion] = useState<{
+    from: string; to: string;
+  } | null>(null);
   const computerThinkingRef = useRef(false);
 
   const { activate, isActive } = useChessVoice({ game, onMove: (san) => moveSan(san) });
@@ -167,7 +170,11 @@ function PlayPage() {
     setComputerThinking(false);
     setOverOpen(false);
   }
-
+  function handlePromotionPick(piece: "q" | "r" | "b" | "n") {
+    if (!pendingPromotion) return;
+    move(pendingPromotion.from, pendingPromotion.to, piece);
+    setPendingPromotion(null);
+  }
   function startGame() {
     reset();
     computerThinkingRef.current = false;
@@ -201,8 +208,8 @@ function PlayPage() {
                   key={color}
                   onClick={() => setPlayerColor(color)}
                   className={`p-4 rounded-lg border-2 transition-all text-center ${playerColor === color
-                      ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
-                      : "border-border hover:border-foreground/40"
+                    ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
+                    : "border-border hover:border-foreground/40"
                     }`}
                 >
                   <div className="text-3xl mb-1">{symbol}</div>
@@ -220,8 +227,8 @@ function PlayPage() {
                   key={key}
                   onClick={() => setDifficulty(key)}
                   className={`p-3 rounded-lg border-2 transition-all text-center text-sm font-medium ${difficulty === key
-                      ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
-                      : "border-border hover:border-foreground/40 text-muted-foreground"
+                    ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
+                    : "border-border hover:border-foreground/40 text-muted-foreground"
                     }`}
                 >
                   {DIFFICULTY_CONFIG[key].label}
@@ -355,6 +362,16 @@ function PlayPage() {
                   boardOrientation: playerColor === "b" ? "black" : "white",
                   onPieceDrop: (args) => {
                     if (isComputerTurn || !args.targetSquare) return false;
+                    const chess = new Chess(fen);
+                    const piece = chess.get(args.sourceSquare as Parameters<typeof chess.get>[0]);
+                    const isPromotion =
+                      piece?.type === "p" &&
+                      ((piece.color === "w" && args.targetSquare[1] === "8") ||
+                        (piece.color === "b" && args.targetSquare[1] === "1"));
+                    if (isPromotion) {
+                      setPendingPromotion({ from: args.sourceSquare, to: args.targetSquare });
+                      return false;
+                    }
                     return move(args.sourceSquare, args.targetSquare);
                   },
                   boardStyle: { borderRadius: 6, overflow: "hidden" },
@@ -410,7 +427,13 @@ function PlayPage() {
           </div>
         </Card>
       </div>
-
+      {pendingPromotion && (
+        <PromotionPickerModal
+          color={new Chess(fen).turn()}
+          onPick={handlePromotionPick}
+          onCancel={() => setPendingPromotion(null)}
+        />
+      )}
       <GameOverDialog
         open={overOpen}
         result={getGameOverLabel(game)}
