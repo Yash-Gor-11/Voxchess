@@ -16,12 +16,16 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthSignupRouteImport } from './routes/auth.signup'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
-import { Route as AppSavedGamesRouteImport } from './routes/_app.saved-games'
 import { Route as AppProfileRouteImport } from './routes/_app.profile'
 import { Route as AppPlayRouteImport } from './routes/_app.play'
+import { Route as AppGamesRouteImport } from './routes/_app.games'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppPlayPvpRouteImport } from './routes/_app.play.pvp'
+import { Route as AppGamesStudiesRouteImport } from './routes/_app.games.studies'
+import { Route as AppGamesMyGamesRouteImport } from './routes/_app.games.my-games'
+import { Route as AppGamesImportedRouteImport } from './routes/_app.games.imported'
 import { Route as AppAnalysisGameIdRouteImport } from './routes/_app.analysis.$gameId'
+import { Route as AppGamesStudiesStudyIdRouteImport } from './routes/_app.games.studies.$studyId'
 
 const TutorialRoute = TutorialRouteImport.update({
   id: '/tutorial',
@@ -57,11 +61,6 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
-const AppSavedGamesRoute = AppSavedGamesRouteImport.update({
-  id: '/saved-games',
-  path: '/saved-games',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppProfileRoute = AppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -70,6 +69,11 @@ const AppProfileRoute = AppProfileRouteImport.update({
 const AppPlayRoute = AppPlayRouteImport.update({
   id: '/play',
   path: '/play',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppGamesRoute = AppGamesRouteImport.update({
+  id: '/games',
+  path: '/games',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -82,10 +86,30 @@ const AppPlayPvpRoute = AppPlayPvpRouteImport.update({
   path: '/pvp',
   getParentRoute: () => AppPlayRoute,
 } as any)
+const AppGamesStudiesRoute = AppGamesStudiesRouteImport.update({
+  id: '/studies',
+  path: '/studies',
+  getParentRoute: () => AppGamesRoute,
+} as any)
+const AppGamesMyGamesRoute = AppGamesMyGamesRouteImport.update({
+  id: '/my-games',
+  path: '/my-games',
+  getParentRoute: () => AppGamesRoute,
+} as any)
+const AppGamesImportedRoute = AppGamesImportedRouteImport.update({
+  id: '/imported',
+  path: '/imported',
+  getParentRoute: () => AppGamesRoute,
+} as any)
 const AppAnalysisGameIdRoute = AppAnalysisGameIdRouteImport.update({
   id: '/analysis/$gameId',
   path: '/analysis/$gameId',
   getParentRoute: () => AppRoute,
+} as any)
+const AppGamesStudiesStudyIdRoute = AppGamesStudiesStudyIdRouteImport.update({
+  id: '/$studyId',
+  path: '/$studyId',
+  getParentRoute: () => AppGamesStudiesRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -93,28 +117,36 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/tutorial': typeof TutorialRoute
   '/dashboard': typeof AppDashboardRoute
+  '/games': typeof AppGamesRouteWithChildren
   '/play': typeof AppPlayRouteWithChildren
   '/profile': typeof AppProfileRoute
-  '/saved-games': typeof AppSavedGamesRoute
   '/settings': typeof AppSettingsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/analysis/$gameId': typeof AppAnalysisGameIdRoute
+  '/games/imported': typeof AppGamesImportedRoute
+  '/games/my-games': typeof AppGamesMyGamesRoute
+  '/games/studies': typeof AppGamesStudiesRouteWithChildren
   '/play/pvp': typeof AppPlayPvpRoute
+  '/games/studies/$studyId': typeof AppGamesStudiesStudyIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/tutorial': typeof TutorialRoute
   '/dashboard': typeof AppDashboardRoute
+  '/games': typeof AppGamesRouteWithChildren
   '/play': typeof AppPlayRouteWithChildren
   '/profile': typeof AppProfileRoute
-  '/saved-games': typeof AppSavedGamesRoute
   '/settings': typeof AppSettingsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/analysis/$gameId': typeof AppAnalysisGameIdRoute
+  '/games/imported': typeof AppGamesImportedRoute
+  '/games/my-games': typeof AppGamesMyGamesRoute
+  '/games/studies': typeof AppGamesStudiesRouteWithChildren
   '/play/pvp': typeof AppPlayPvpRoute
+  '/games/studies/$studyId': typeof AppGamesStudiesStudyIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -123,14 +155,18 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/tutorial': typeof TutorialRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/games': typeof AppGamesRouteWithChildren
   '/_app/play': typeof AppPlayRouteWithChildren
   '/_app/profile': typeof AppProfileRoute
-  '/_app/saved-games': typeof AppSavedGamesRoute
   '/_app/settings': typeof AppSettingsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/_app/analysis/$gameId': typeof AppAnalysisGameIdRoute
+  '/_app/games/imported': typeof AppGamesImportedRoute
+  '/_app/games/my-games': typeof AppGamesMyGamesRoute
+  '/_app/games/studies': typeof AppGamesStudiesRouteWithChildren
   '/_app/play/pvp': typeof AppPlayPvpRoute
+  '/_app/games/studies/$studyId': typeof AppGamesStudiesStudyIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -139,28 +175,36 @@ export interface FileRouteTypes {
     | '/about'
     | '/tutorial'
     | '/dashboard'
+    | '/games'
     | '/play'
     | '/profile'
-    | '/saved-games'
     | '/settings'
     | '/auth/login'
     | '/auth/signup'
     | '/analysis/$gameId'
+    | '/games/imported'
+    | '/games/my-games'
+    | '/games/studies'
     | '/play/pvp'
+    | '/games/studies/$studyId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
     | '/tutorial'
     | '/dashboard'
+    | '/games'
     | '/play'
     | '/profile'
-    | '/saved-games'
     | '/settings'
     | '/auth/login'
     | '/auth/signup'
     | '/analysis/$gameId'
+    | '/games/imported'
+    | '/games/my-games'
+    | '/games/studies'
     | '/play/pvp'
+    | '/games/studies/$studyId'
   id:
     | '__root__'
     | '/'
@@ -168,14 +212,18 @@ export interface FileRouteTypes {
     | '/about'
     | '/tutorial'
     | '/_app/dashboard'
+    | '/_app/games'
     | '/_app/play'
     | '/_app/profile'
-    | '/_app/saved-games'
     | '/_app/settings'
     | '/auth/login'
     | '/auth/signup'
     | '/_app/analysis/$gameId'
+    | '/_app/games/imported'
+    | '/_app/games/my-games'
+    | '/_app/games/studies'
     | '/_app/play/pvp'
+    | '/_app/games/studies/$studyId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -238,13 +286,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/saved-games': {
-      id: '/_app/saved-games'
-      path: '/saved-games'
-      fullPath: '/saved-games'
-      preLoaderRoute: typeof AppSavedGamesRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/profile': {
       id: '/_app/profile'
       path: '/profile'
@@ -257,6 +298,13 @@ declare module '@tanstack/react-router' {
       path: '/play'
       fullPath: '/play'
       preLoaderRoute: typeof AppPlayRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/games': {
+      id: '/_app/games'
+      path: '/games'
+      fullPath: '/games'
+      preLoaderRoute: typeof AppGamesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -273,6 +321,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlayPvpRouteImport
       parentRoute: typeof AppPlayRoute
     }
+    '/_app/games/studies': {
+      id: '/_app/games/studies'
+      path: '/studies'
+      fullPath: '/games/studies'
+      preLoaderRoute: typeof AppGamesStudiesRouteImport
+      parentRoute: typeof AppGamesRoute
+    }
+    '/_app/games/my-games': {
+      id: '/_app/games/my-games'
+      path: '/my-games'
+      fullPath: '/games/my-games'
+      preLoaderRoute: typeof AppGamesMyGamesRouteImport
+      parentRoute: typeof AppGamesRoute
+    }
+    '/_app/games/imported': {
+      id: '/_app/games/imported'
+      path: '/imported'
+      fullPath: '/games/imported'
+      preLoaderRoute: typeof AppGamesImportedRouteImport
+      parentRoute: typeof AppGamesRoute
+    }
     '/_app/analysis/$gameId': {
       id: '/_app/analysis/$gameId'
       path: '/analysis/$gameId'
@@ -280,8 +349,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAnalysisGameIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/games/studies/$studyId': {
+      id: '/_app/games/studies/$studyId'
+      path: '/$studyId'
+      fullPath: '/games/studies/$studyId'
+      preLoaderRoute: typeof AppGamesStudiesStudyIdRouteImport
+      parentRoute: typeof AppGamesStudiesRoute
+    }
   }
 }
+
+interface AppGamesStudiesRouteChildren {
+  AppGamesStudiesStudyIdRoute: typeof AppGamesStudiesStudyIdRoute
+}
+
+const AppGamesStudiesRouteChildren: AppGamesStudiesRouteChildren = {
+  AppGamesStudiesStudyIdRoute: AppGamesStudiesStudyIdRoute,
+}
+
+const AppGamesStudiesRouteWithChildren = AppGamesStudiesRoute._addFileChildren(
+  AppGamesStudiesRouteChildren,
+)
+
+interface AppGamesRouteChildren {
+  AppGamesImportedRoute: typeof AppGamesImportedRoute
+  AppGamesMyGamesRoute: typeof AppGamesMyGamesRoute
+  AppGamesStudiesRoute: typeof AppGamesStudiesRouteWithChildren
+}
+
+const AppGamesRouteChildren: AppGamesRouteChildren = {
+  AppGamesImportedRoute: AppGamesImportedRoute,
+  AppGamesMyGamesRoute: AppGamesMyGamesRoute,
+  AppGamesStudiesRoute: AppGamesStudiesRouteWithChildren,
+}
+
+const AppGamesRouteWithChildren = AppGamesRoute._addFileChildren(
+  AppGamesRouteChildren,
+)
 
 interface AppPlayRouteChildren {
   AppPlayPvpRoute: typeof AppPlayPvpRoute
@@ -296,18 +400,18 @@ const AppPlayRouteWithChildren =
 
 interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
+  AppGamesRoute: typeof AppGamesRouteWithChildren
   AppPlayRoute: typeof AppPlayRouteWithChildren
   AppProfileRoute: typeof AppProfileRoute
-  AppSavedGamesRoute: typeof AppSavedGamesRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppAnalysisGameIdRoute: typeof AppAnalysisGameIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
+  AppGamesRoute: AppGamesRouteWithChildren,
   AppPlayRoute: AppPlayRouteWithChildren,
   AppProfileRoute: AppProfileRoute,
-  AppSavedGamesRoute: AppSavedGamesRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppAnalysisGameIdRoute: AppAnalysisGameIdRoute,
 }
