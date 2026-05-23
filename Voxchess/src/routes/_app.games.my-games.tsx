@@ -58,7 +58,7 @@ function MyGamesPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="h-full overflow-y-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button
@@ -102,43 +102,54 @@ function MyGamesPage() {
           const black = g.metadata?.Black ?? "Black";
 
           return (
-            <Card
-              key={g.id}
-              className="flex items-center gap-4 px-5 py-4"
-            >
-              {/* Serial number */}
-              <div className="flex-shrink-0 w-7 text-xs font-mono text-muted-foreground text-right">
-                {i + 1}
+            <Card key={g.id} className="px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-6 text-xs font-mono text-muted-foreground text-right">
+                  {i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {white} vs {black}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {moveCount} moves · {new Date(g.created_at).toLocaleDateString("en-US", {
+                      month: "short", day: "numeric", year: "numeric",
+                    })}
+                  </div>
+                </div>
+
+                <Badge variant={resultVariant(g.result)} className="flex-shrink-0 text-xs">
+                  {resultLabel(g.result)}
+                </Badge>
+
+                {/* Actions inline on sm+ */}
+                <div className="hidden sm:flex items-center gap-1 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })}
+                  >
+                    <LineChart className="h-3.5 w-3.5 mr-1.5" />
+                    Analyse
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDelete(g.id)}
+                    aria-label="Delete game"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
               </div>
 
-              {/* Game info */}
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">
-                  {white} vs {black}
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {moveCount} moves ·{" "}
-                  {new Date(g.created_at).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </div>
-              </div>
-
-              {/* Result badge */}
-              <Badge variant={resultVariant(g.result)} className="flex-shrink-0">
-                {resultLabel(g.result)}
-              </Badge>
-
-              {/* Actions */}
-              <div className="flex items-center gap-1 flex-shrink-0">
+              {/* Actions below on mobile */}
+              <div className="flex sm:hidden gap-2 mt-3 ml-9">
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })
-                  }
+                  className="flex-1"
+                  onClick={() => navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })}
                 >
                   <LineChart className="h-3.5 w-3.5 mr-1.5" />
                   Analyse
