@@ -73,8 +73,9 @@ function GamesPage() {
           imported: imported.length,
           studies: studies.length,
         });
-      } catch {
+      } catch  {
         // counts stay 0 — non-critical
+        
       } finally {
         setLoading(false);
       }

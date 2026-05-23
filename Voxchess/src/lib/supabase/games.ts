@@ -99,11 +99,12 @@ export async function getPlatformGames(): Promise<Game[]> {
     .from("games")
     .select("*")
     .or(`white_id.eq.${user.id},black_id.eq.${user.id}`)
-    .eq("type", "platform")
+    .in("type", ["platform"])
     .order("created_at", { ascending: false });
 
   if (error) throw error;
   return (data ?? []) as Game[];
+  
 }
 
 /** Returns imported games and saved FEN positions (type = 'imported'). */
