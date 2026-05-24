@@ -53,7 +53,7 @@ function ImportedGamesPage() {
   const isPosition = (g: Game) => !!g.fen && !g.pgn;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 h-full overflow-y-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button
@@ -73,7 +73,7 @@ function ImportedGamesPage() {
           </p>
         </div>
         <div className="ml-auto">
-          <Button size="sm" disabled title="Coming soon">
+          <Button size="sm" onClick={() => navigate({ to: "/import" })}>
             Import
           </Button>
         </div>
@@ -84,7 +84,7 @@ function ImportedGamesPage() {
         <Card className="p-10 text-center">
           <FolderOpen className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">No imported games yet.</p>
-          <Button size="sm" className="mt-4" disabled title="Coming soon">
+          <Button size="sm" className="mt-4" onClick={() => navigate({ to: "/import" })}>
             Import a game
           </Button>
         </Card>
@@ -99,8 +99,7 @@ function ImportedGamesPage() {
             : `${g.metadata?.White ?? "White"} vs ${g.metadata?.Black ?? "Black"}`;
           const subtitle = pos
             ? (g.metadata?.note ?? g.fen ?? "")
-            : `${countMovesFromPgn(g.pgn)} moves · ${g.metadata?.Event ?? ""} · ${
-                g.metadata?.Date ?? ""
+            : `${countMovesFromPgn(g.pgn)} moves · ${g.metadata?.Event ?? ""} · ${g.metadata?.Date ?? ""
               }`.replace(/^ · | · $/g, "").replace(/ ·  · /g, " · ");
 
           return (

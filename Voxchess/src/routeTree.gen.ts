@@ -18,6 +18,7 @@ import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppProfileRouteImport } from './routes/_app.profile'
 import { Route as AppPlayRouteImport } from './routes/_app.play'
+import { Route as AppImportRouteImport } from './routes/_app.import'
 import { Route as AppGamesRouteImport } from './routes/_app.games'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppPlayPvpRouteImport } from './routes/_app.play.pvp'
@@ -71,6 +72,11 @@ const AppPlayRoute = AppPlayRouteImport.update({
   path: '/play',
   getParentRoute: () => AppRoute,
 } as any)
+const AppImportRoute = AppImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppGamesRoute = AppGamesRouteImport.update({
   id: '/games',
   path: '/games',
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/tutorial': typeof TutorialRoute
   '/dashboard': typeof AppDashboardRoute
   '/games': typeof AppGamesRouteWithChildren
+  '/import': typeof AppImportRoute
   '/play': typeof AppPlayRouteWithChildren
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/tutorial': typeof TutorialRoute
   '/dashboard': typeof AppDashboardRoute
   '/games': typeof AppGamesRouteWithChildren
+  '/import': typeof AppImportRoute
   '/play': typeof AppPlayRouteWithChildren
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/tutorial': typeof TutorialRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/games': typeof AppGamesRouteWithChildren
+  '/_app/import': typeof AppImportRoute
   '/_app/play': typeof AppPlayRouteWithChildren
   '/_app/profile': typeof AppProfileRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/dashboard'
     | '/games'
+    | '/import'
     | '/play'
     | '/profile'
     | '/settings'
@@ -194,6 +204,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/dashboard'
     | '/games'
+    | '/import'
     | '/play'
     | '/profile'
     | '/settings'
@@ -213,6 +224,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/_app/dashboard'
     | '/_app/games'
+    | '/_app/import'
     | '/_app/play'
     | '/_app/profile'
     | '/_app/settings'
@@ -298,6 +310,13 @@ declare module '@tanstack/react-router' {
       path: '/play'
       fullPath: '/play'
       preLoaderRoute: typeof AppPlayRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/import': {
+      id: '/_app/import'
+      path: '/import'
+      fullPath: '/import'
+      preLoaderRoute: typeof AppImportRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/games': {
@@ -401,6 +420,7 @@ const AppPlayRouteWithChildren =
 interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppGamesRoute: typeof AppGamesRouteWithChildren
+  AppImportRoute: typeof AppImportRoute
   AppPlayRoute: typeof AppPlayRouteWithChildren
   AppProfileRoute: typeof AppProfileRoute
   AppSettingsRoute: typeof AppSettingsRoute
@@ -410,6 +430,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppGamesRoute: AppGamesRouteWithChildren,
+  AppImportRoute: AppImportRoute,
   AppPlayRoute: AppPlayRouteWithChildren,
   AppProfileRoute: AppProfileRoute,
   AppSettingsRoute: AppSettingsRoute,

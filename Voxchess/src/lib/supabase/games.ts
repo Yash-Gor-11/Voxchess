@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -15,6 +16,7 @@ export interface GameMetadata {
   // FEN position fields (populated on position save)
   name?: string;
   note?: string;
+  ChapterName?: string;
 }
 
 export interface Game {
@@ -253,4 +255,87 @@ export async function getStudyChapters(studyId: string): Promise<Game[]> {
 
   if (error) throw error;
   return (data ?? []) as Game[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Import helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Save a PGN imported from outside VoxChess (paste / file / URL). */
+export async function saveImportedGame(
+  pgn: string,
+  metadata: GameMetadata,
+  result: string = "ongoing",
+): Promise<Game> {
+  const user = await currentUser();
+
+  const { data, error } = await supabase
+    .from("games")
+    .insert({
+      white_id: user.id,
+      pgn,
+      result,
+      mode: "solo",
+      type: "imported",
+      metadata: metadata as unknown as Json,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Game;
+}
+
+/** Save a bare FEN position with no moves (type = 'imported'). */
+export async function saveFenPosition(
+  fen: string,
+  name: string,
+): Promise<Game> {
+  const user = await currentUser();
+
+  const { data, error } = await supabase
+    .from("games")
+    .insert({
+      white_id: user.id,
+      pgn: "",
+      result: "ongoing",
+      mode: "solo",
+      type: "imported",
+      fen,
+      metadata: { name } as unknown as Json,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Game;
+}
+
+/** Save a single chapter inside a study. */
+export async function saveStudyChapter(
+  studyId: string,
+  pgn: string,
+  metadata: GameMetadata,
+  result: string = "ongoing",
+  chapterIndex: number = 0,
+): Promise<Game> {
+  const user = await currentUser();
+
+  const { data, error } = await supabase
+    .from("games")
+    .insert({
+      white_id: user.id,
+      pgn,
+      result,
+      mode: "solo",
+      type: "study_chapter",
+      study_id: studyId,
+      chapter_index: chapterIndex,
+      metadata: metadata as unknown as Json,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Game;
 }

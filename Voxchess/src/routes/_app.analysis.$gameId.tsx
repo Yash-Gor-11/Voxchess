@@ -28,6 +28,7 @@ import { useVoiceStore } from "@/stores/voiceStore";
 import { isSpeechSupported, startRecognition } from "@/lib/voice/speechRecognition";
 import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 import { PromotionPickerModal } from "@/components/chess/PromotionPickerModal";
+import { parseSinglePgn } from "@/lib/chess/pgnImport";
 
 export const Route = createFileRoute("/_app/analysis/$gameId")({
   head: () => ({ meta: [{ title: "Analysis — VoxChess" }] }),
@@ -146,8 +147,8 @@ function AnalysisPage() {
     node: TreeNode; text: string;
   } | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<{
-  from: string; to: string;
-} | null>(null);
+    from: string; to: string;
+  } | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Card ref used to clamp drag max to card's inner dimensions
   const boardCardRef = useRef<HTMLDivElement>(null);
@@ -227,19 +228,21 @@ function AnalysisPage() {
     async function load() {
       try {
         const game = await getGame(gameId);
-        if (!game.pgn) {
-          toast.error("No moves in this game");
-          return;
-        }
-        const chess = new Chess();
-        chess.loadPgn(game.pgn);
-        const history = chess.history();
-        const startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        const startFen = game.fen ?? "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         const t = new AnalysisTree(startFen);
-        t.loadMainLine(history);
+
+        if (game.pgn) {
+          const parsed = parseSinglePgn(game.pgn);
+          if (parsed?.moves.length) {
+            t.loadMainLine(parsed.moves);
+          }
+        }
+        // FEN-only: tree has just the root node, that's correct
+
         treeRef.current = t;
         setTree(t);
         setCurrentNode(t.root);
+
         try {
           const saved = await getAnnotations(gameId);
           if (saved?.tree) {
@@ -431,40 +434,40 @@ function AnalysisPage() {
   }, [prev, next, activateVoice]);
 
   function handlePieceDrop(from: string, to: string): boolean {
-  if (!treeRef.current || !currentNode) return false;
-  const chess = new Chess(currentNode.fen);
-  const piece = chess.get(from as Parameters<typeof chess.get>[0]);
-  const isPromotion =
-    piece?.type === "p" &&
-    ((piece.color === "w" && to[1] === "8") || (piece.color === "b" && to[1] === "1"));
+    if (!treeRef.current || !currentNode) return false;
+    const chess = new Chess(currentNode.fen);
+    const piece = chess.get(from as Parameters<typeof chess.get>[0]);
+    const isPromotion =
+      piece?.type === "p" &&
+      ((piece.color === "w" && to[1] === "8") || (piece.color === "b" && to[1] === "1"));
 
-  if (isPromotion) {
-    setPendingPromotion({ from, to });
-    return false; // board resets visually until we confirm
+    if (isPromotion) {
+      setPendingPromotion({ from, to });
+      return false; // board resets visually until we confirm
+    }
+
+    const node = treeRef.current.makeMove(`${from}${to}`);
+    if (!node) {
+      toast.error("Illegal move");
+      return false;
+    }
+    setRevision((r) => r + 1);
+    setCurrentNode({ ...node });
+    return true;
   }
 
-  const node = treeRef.current.makeMove(`${from}${to}`);
-  if (!node) {
-    toast.error("Illegal move");
-    return false;
+  function handlePromotionPick(piece: "q" | "r" | "b" | "n") {
+    if (!pendingPromotion || !treeRef.current) return;
+    const { from, to } = pendingPromotion;
+    const node = treeRef.current.makeMove(`${from}${to}${piece}`);
+    setPendingPromotion(null);
+    if (!node) {
+      toast.error("Illegal move");
+      return;
+    }
+    setRevision((r) => r + 1);
+    setCurrentNode({ ...node });
   }
-  setRevision((r) => r + 1);
-  setCurrentNode({ ...node });
-  return true;
-}
-
-function handlePromotionPick(piece: "q" | "r" | "b" | "n") {
-  if (!pendingPromotion || !treeRef.current) return;
-  const { from, to } = pendingPromotion;
-  const node = treeRef.current.makeMove(`${from}${to}${piece}`);
-  setPendingPromotion(null);
-  if (!node) {
-    toast.error("Illegal move");
-    return;
-  }
-  setRevision((r) => r + 1);
-  setCurrentNode({ ...node });
-}
 
   function handleSquareRightClick(square: string) {
     setRightClickFrom(square);
@@ -973,12 +976,12 @@ function handlePromotionPick(piece: "q" | "r" | "b" | "n") {
         </div>
       )}
       {pendingPromotion && currentNode && (
-  <PromotionPickerModal
-    color={new Chess(currentNode.fen).turn()}
-    onPick={handlePromotionPick}
-    onCancel={() => setPendingPromotion(null)}
-  />
-)}
+        <PromotionPickerModal
+          color={new Chess(currentNode.fen).turn()}
+          onPick={handlePromotionPick}
+          onCancel={() => setPendingPromotion(null)}
+        />
+      )}
     </div>
   );
 }

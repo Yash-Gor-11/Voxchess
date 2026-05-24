@@ -80,7 +80,7 @@ function StudyDetailPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 h-full overflow-y-auto">
       {/* Header */}
       <div className="flex items-start gap-3">
         <Button
@@ -93,7 +93,7 @@ function StudyDetailPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow">
           {renaming ? (
             <div className="flex items-center gap-2">
               <Input
@@ -144,9 +144,9 @@ function StudyDetailPage() {
       {/* Chapter list */}
       <div className="space-y-2">
         {chapters.map((ch, i) => {
+          const chapterName = ch.metadata?.ChapterName ?? ch.metadata?.Event;
           const white = ch.metadata?.White ?? "White";
           const black = ch.metadata?.Black ?? "Black";
-          const event = ch.metadata?.Event;
           const moveCount = countMovesFromPgn(ch.pgn);
 
           return (
@@ -173,7 +173,7 @@ function StudyDetailPage() {
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">
-                  {event ?? `${white} vs ${black}`}
+                  {chapterName ?? `${white} vs ${black}`}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   {white} vs {black} · {moveCount} moves

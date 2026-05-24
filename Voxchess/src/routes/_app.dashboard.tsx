@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Trophy, Swords, Minus, Equal, BookMarked, TrendingUp } from "lucide-react";
+import { Trophy, Swords, Minus, Equal, BookMarked, TrendingUp, Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -141,6 +141,13 @@ function DashboardPage() {
                 onClick={() => navigate({ to: "/games" })}
               >
                 <BookMarked className="h-4 w-4 mr-2" /> Saved games
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => navigate({ to: "/import" })}
+              >
+                <Upload className="h-4 w-4 mr-2" /> Import game
               </Button>
             </div>
           </Card>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Swords, FolderOpen, BookOpen, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { getPlatformGames, getImportedGames, getStudies } from "@/lib/supabase/games";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_app/games")({
   head: () => ({ meta: [{ title: "Games — VoxChess" }] }),
@@ -92,11 +93,15 @@ function GamesPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-2xl">
-      <div>
-        <h2 className="text-lg font-semibold">Games</h2>
-        <p className="text-sm text-muted-foreground">Choose a folder to browse your games</p>
-      </div>
-
+      <div className="flex items-start justify-between">
+  <div>
+    <h2 className="text-lg font-semibold">Games</h2>
+    <p className="text-sm text-muted-foreground">Choose a folder to browse your games</p>
+  </div>
+  <Button size="sm" onClick={() => navigate({ to: "/import" })}>
+    Import
+  </Button>
+</div>
       <div className="space-y-3">
         {folders.map((folder) => {
           const Icon = folder.icon;
