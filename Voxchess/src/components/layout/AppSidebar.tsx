@@ -58,7 +58,10 @@ interface AppSidebarProps {
 export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSidebarProps) {
   const loc = useLocation();
   const isAnalysisPage = loc.pathname.startsWith("/analysis");
-  const { activeMode, activateChessCallback } = useVoiceStore();
+  const isPlayPage = loc.pathname === "/play";
+  const supportsChessVoice = isAnalysisPage || isPlayPage;
+  const activeMode = useVoiceStore((s) => s.activeMode);
+  const activateChessCallback = useVoiceStore((s) => s.activateChessCallback);
   const isVoiceActive = activeMode === "chess";
   const [isPortrait, setIsPortrait] = useState(
     typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false
@@ -72,18 +75,30 @@ export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSideba
     return () => window.removeEventListener("resize", onResize);
   }, []);
   
-  const voiceSection = isAnalysisPage && (
+  const voiceSection = supportsChessVoice && (
     <div className="border-t border-border/40 p-4 text-center space-y-2">
-      <div className="text-xs text-muted-foreground uppercase tracking-wider">Voice navigation</div>
+      <div className="text-xs text-muted-foreground uppercase tracking-wider">
+        {isPlayPage ? "Voice moves" : "Voice navigation"}
+      </div>
       <ChessVoiceButton
         onActivate={activateChessCallback ?? (() => { })}
         isActive={isVoiceActive}
         enabled={!!activateChessCallback}
       />
       <div className="text-[10px] text-muted-foreground leading-relaxed">
-        Space · "next" · "previous"
-        <br />
-        "go to move 5" · "main line"
+        {isPlayPage ? (
+          <>
+            Say your move aloud
+            <br />
+            or press Space
+          </>
+        ) : (
+          <>
+            Space - "next" - "previous"
+            <br />
+            "go to move 5" - "main line"
+          </>
+        )}
       </div>
       <TranscriptDisplay mode="chess" />
     </div>
@@ -132,7 +147,7 @@ export function AppSidebar({ email, mobileNavOpen, setMobileNavOpen }: AppSideba
             <NavItems onNavigate={() => setMobileNavOpen(false)} />
           </nav>
 
-          {/* Voice section (analysis page only) */}
+          {/* Voice section for chess-enabled routes */}
           {voiceSection}
 
           {/* Footer */}

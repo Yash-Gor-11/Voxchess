@@ -34,7 +34,10 @@ interface AppHeaderProps {
 export function AppHeader({ email, onMenuClick }: AppHeaderProps) {
   const loc = useLocation();
   const isAnalysisPage = loc.pathname.startsWith("/analysis");
-  const { activeMode, activateChessCallback } = useVoiceStore();
+  const isPlayPage = loc.pathname === "/play";
+  const supportsChessVoice = isAnalysisPage || isPlayPage;
+  const activeMode = useVoiceStore((s) => s.activeMode);
+  const activateChessCallback = useVoiceStore((s) => s.activateChessCallback);
   const isVoiceActive = activeMode === "chess";
 
   const title = TITLES[loc.pathname] ?? (isAnalysisPage ? "Analysis" : "VoxChess");
@@ -66,9 +69,9 @@ useEffect(() => {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Chess voice button — analysis page, mobile only (sidebar handles desktop) */}
-        {isAnalysisPage && (
-          <div className="md:hidden">
+        {/* Shown when this header replaces the desktop chess voice control. */}
+        {supportsChessVoice && (
+          <div className={isPortrait ? "block" : "md:hidden"}>
             <ChessVoiceButton
               onActivate={activateChessCallback ?? (() => {})}
               isActive={isVoiceActive}

@@ -16,7 +16,11 @@ interface Opts {
 
 export function useChessVoice({ game, onMove }: Opts) {
   const handleRef = useRef<RecognitionHandle | null>(null);
-  const { activeMode, setActive, setStatus, setTranscript, setResult } = useVoiceStore();
+  const activeMode = useVoiceStore((s) => s.activeMode);
+  const setActive = useVoiceStore((s) => s.setActive);
+  const setStatus = useVoiceStore((s) => s.setStatus);
+  const setTranscript = useVoiceStore((s) => s.setTranscript);
+  const setResult = useVoiceStore((s) => s.setResult);
 
   const stop = useCallback(() => {
     handleRef.current?.stop();
