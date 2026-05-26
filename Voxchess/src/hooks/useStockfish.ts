@@ -1,3 +1,4 @@
+// src/hooks/useStockfish.ts
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StockfishEngine, type StockfishEval } from "@/lib/chess/stockfish";
 
@@ -20,13 +21,13 @@ export function useStockfish() {
     };
   }, []);
 
-  const evaluate = useCallback((fen: string) => {
+  const evaluate = useCallback((fen: string, depth?: number, skillLevel?: number) => {
     if (fen !== lastFenRef.current) {
       lastFenRef.current = fen;
       setEvaluation(null);
     }
-    engineRef.current?.evaluate(fen);
-  }, []); // stable — only touches refs
+    engineRef.current?.evaluate(fen, depth, skillLevel);
+  }, []);
 
   const stop = useCallback(() => {
     engineRef.current?.stop();

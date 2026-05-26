@@ -1,3 +1,8 @@
+// src/lib/chess/stockfish.ts
+// Changes from previous version:
+// - evaluate() now accepts depth and skillLevel params
+// - setoption Skill Level sent before each position
+
 export interface StockfishEval {
   score: number;
   mate: number | null;
@@ -44,7 +49,8 @@ export class StockfishEngine {
 
   private send(cmd: string) {
     if (!this.worker) return;
-    if (!this.isReady && !["uci", "setoption name MultiPV value 3", "isready"].includes(cmd)) {
+    const initCmds = ["uci", "setoption name MultiPV value 3", "isready"];
+    if (!this.isReady && !initCmds.includes(cmd)) {
       this.queue.push(cmd);
       return;
     }
@@ -72,27 +78,24 @@ export class StockfishEngine {
     const scoreType = scoreMatch[1];
     const scoreVal = parseInt(scoreMatch[2]);
     const pvString = pvMatch[1];
-    const move = pvString.split(" ")[0]; // first move only
+    const move = pvString.split(" ")[0];
 
-    if (depth < 8) return;
+    if (depth < 4) return; // Lower threshold for lower depth settings
 
     const score = scoreType === "mate" ? (scoreVal > 0 ? 10000 : -10000) : scoreVal;
 
-    // Store with explicit multipv index (1-based)
     this.bestMoves[multipv - 1] = { move, pv: pvString, score, scoreType, scoreVal };
     this.scoreByMultiPV[multipv] = { type: scoreType, val: scoreVal };
     this.latestDepth = depth;
 
     if (this.evalTimeout) clearTimeout(this.evalTimeout);
     this.evalTimeout = setTimeout(() => {
-      // Don't emit until PV1 exists — avoids PV2 appearing as rank #1
       if (!this.bestMoves[0]) return;
 
       const pv1Score = this.scoreByMultiPV[1];
       const normalizedScore = (this.bestMoves[0].score ?? 0) * this.activeSide;
       const normalizedMate = pv1Score?.type === "mate" ? pv1Score.val * this.activeSide : null;
 
-      // Preserve multipv order, only include slots that have arrived
       const bestMoves = this.bestMoves
         .map((m) => {
           if (!m) return null;
@@ -113,19 +116,19 @@ export class StockfishEngine {
         bestMoves,
         depth: this.latestDepth,
       });
-    }, 300);
+    }, 200);
   }
 
-  evaluate(fen: string) {
+  evaluate(fen: string, depth = 18, skillLevel = 20) {
     if (fen === this.currentFen) return;
     this.currentFen = fen;
     this.bestMoves = [];
     this.scoreByMultiPV = {};
-    // Extract active color from FEN (second field)
     this.activeSide = fen.split(" ")[1] === "b" ? -1 : 1;
     this.send("stop");
+    this.send(`setoption name Skill Level value ${skillLevel}`);
     this.send(`position fen ${fen}`);
-    this.send("go depth 18");
+    this.send(`go depth ${depth}`);
   }
 
   stop() {
