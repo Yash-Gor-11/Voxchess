@@ -1,7 +1,7 @@
 // src/lib/chess/personalities.ts
 
 export type PersonalityId = "frost" | "sterling" | "finn" | "malachar" | "biscuit";
-export type AvatarState = "idle" | "thinking" | "talking" | "win" | "lose";
+export type AvatarState = "idle" | "thinking" | "talking" | "win" | "lose" | "draw";
 
 export interface Personality {
   id: PersonalityId;
@@ -13,6 +13,9 @@ export interface Personality {
   voice: {
     pitch: number;
     rate: number;
+    volume?: number;
+    // Substrings to match against SpeechSynthesisVoice.name, tried in order
+    preferredVoices: string[];
   };
   responses: {
     moveQuips: string[];
@@ -34,13 +37,19 @@ export const PERSONALITIES: Personality[] = [
     emoji: "🐧",
     accentColor: "#1e40af",
     images: {
-      idle:     "/characters/frost/idle.png",
+      idle: "/characters/frost/idle.png",
       thinking: "/characters/frost/thinking.png",
-      talking:  "/characters/frost/talking.png",
-      win:      "/characters/frost/win.png",
-      lose:     "/characters/frost/lose.png",
+      talking: "/characters/frost/talking.png",
+      win: "/characters/frost/win.png",
+      lose: "/characters/frost/lose.png",
+      draw: "/characters/frost/draw.png",
     },
-    voice: { pitch: 0.75, rate: 1.05 },
+    voice: {
+      pitch: 0.55,
+      rate: 0.88,
+      volume: 1.0,
+      preferredVoices: ["Google UK English Male", "Daniel", "Arthur", "Microsoft George", "en-GB-male"],
+    },
     responses: {
       moveQuips: [
         "Textbook execution, soldier.",
@@ -63,6 +72,9 @@ export const PERSONALITIES: Personality[] = [
       drawAccept: [
         "A temporary armistice. We regroup.",
         "Acceptable terms. For now.",
+        "A draw. This will go in no report I file.",
+        "Acceptable terms. Officially. Unofficially, I am furious.",
+        "The mission is... incomplete.",
       ],
       drawRefuse: [
         "Soldiers don't negotiate. We finish the mission.",
@@ -97,13 +109,19 @@ export const PERSONALITIES: Personality[] = [
     emoji: "🦝",
     accentColor: "#78350f",
     images: {
-      idle:     "/characters/sterling/idle.png",
+      idle: "/characters/sterling/idle.png",
       thinking: "/characters/sterling/thinking.png",
-      talking:  "/characters/sterling/talking.png",
-      win:      "/characters/sterling/win.png",
-      lose:     "/characters/sterling/lose.png",
+      talking: "/characters/sterling/talking.png",
+      win: "/characters/sterling/win.png",
+      lose: "/characters/sterling/lose.png",
+      draw: "/characters/sterling/draw.png",
     },
-    voice: { pitch: 0.9, rate: 0.92 },
+    voice: {
+      pitch: 0.9,
+      rate: 0.84,
+      volume: 0.9,
+      preferredVoices: ["Google UK English Male", "Daniel", "Arthur", "Microsoft George"],
+    },
     responses: {
       moveQuips: [
         "Precisely as I predicted.",
@@ -126,6 +144,9 @@ export const PERSONALITIES: Personality[] = [
       drawAccept: [
         "A draw implies we are equals. We are not. But fine.",
         "I accept. Under protest. The data is inconclusive.",
+        "A draw. The board is clearly defective.",
+        "This outcome is not in my models. I will be recalibrating overnight.",
+        "We are not equals. And yet. Here we are.",
       ],
       drawRefuse: [
         "A draw implies we are equals. We are not.",
@@ -162,13 +183,19 @@ export const PERSONALITIES: Personality[] = [
     emoji: "🦊",
     accentColor: "#c2410c",
     images: {
-      idle:     "/characters/finn/idle.png",
+      idle: "/characters/finn/idle.png",
       thinking: "/characters/finn/thinking.png",
-      talking:  "/characters/finn/talking.png",
-      win:      "/characters/finn/win.png",
-      lose:     "/characters/finn/lose.png",
+      talking: "/characters/finn/talking.png",
+      win: "/characters/finn/win.png",
+      lose: "/characters/finn/lose.png",
+      draw: "/characters/finn/draw.png",
     },
-    voice: { pitch: 1.05, rate: 1.1 },
+    voice: {
+      pitch: 1.15,
+      rate: 1.18,
+      volume: 1.0,
+      preferredVoices: ["Google US English", "Alex", "Tom", "Microsoft Guy", "en-US-male"],
+    },
     responses: {
       moveQuips: [
         "Oh, interesting. Keep trying.",
@@ -191,6 +218,9 @@ export const PERSONALITIES: Personality[] = [
       drawAccept: [
         "Yeah alright. Even I can admit when a thing's even.",
         "Fine. Draw. This never happened.",
+        "A draw. Sure. Fine. Whatever.",
+        "Half a win is still half a loss. Think about that.",
+        "I had you. You know I had you.",
       ],
       drawRefuse: [
         "A draw? Please.",
@@ -225,13 +255,19 @@ export const PERSONALITIES: Personality[] = [
     emoji: "🐱",
     accentColor: "#7e22ce",
     images: {
-      idle:     "/characters/malachar/idle.png",
+      idle: "/characters/malachar/idle.png",
       thinking: "/characters/malachar/thinking.png",
-      talking:  "/characters/malachar/talking.png",
-      win:      "/characters/malachar/win.png",
-      lose:     "/characters/malachar/lose.png",
+      talking: "/characters/malachar/talking.png",
+      win: "/characters/malachar/win.png",
+      lose: "/characters/malachar/lose.png",
+      draw: "/characters/malachar/draw.png",
     },
-    voice: { pitch: 0.82, rate: 0.82 },
+    voice: {
+      pitch: 0.65,
+      rate: 0.76,
+      volume: 0.85,
+      preferredVoices: ["Google UK English Female", "Serena", "Martha", "Microsoft Hazel", "en-GB-female"],
+    },
     responses: {
       moveQuips: [
         "How... unexpected.",
@@ -254,6 +290,9 @@ export const PERSONALITIES: Personality[] = [
       drawAccept: [
         "I accept... this once. Do not mistake it for mercy.",
         "A draw. How unsatisfying. And yet.",
+        "A draw. How... unsatisfying.",
+        "Neither victory nor defeat. The worst of all outcomes.",
+        "I shall pretend this never happened."
       ],
       drawRefuse: [
         "A draw? How utterly pedestrian.",
@@ -290,13 +329,19 @@ export const PERSONALITIES: Personality[] = [
     emoji: "🐶",
     accentColor: "#d97706",
     images: {
-      idle:     "/characters/biscuit/idle.png",
+      idle: "/characters/biscuit/idle.png",
       thinking: "/characters/biscuit/thinking.png",
-      talking:  "/characters/biscuit/talking.png",
-      win:      "/characters/biscuit/win.png",
-      lose:     "/characters/biscuit/lose.png",
+      talking: "/characters/biscuit/talking.png",
+      win: "/characters/biscuit/win.png",
+      lose: "/characters/biscuit/lose.png",
+      draw: "/characters/biscuit/draw.png",
     },
-    voice: { pitch: 1.25, rate: 1.2 },
+    voice: {
+      pitch: 1.5,
+      rate: 1.4,
+      volume: 1.0,
+      preferredVoices: ["Google US English", "Samantha", "Zira", "Microsoft Zira", "en-US"],
+    },
     responses: {
       moveQuips: [
         "Oh! Good move! Wait is that good? I think that's good!",
@@ -319,6 +364,9 @@ export const PERSONALITIES: Personality[] = [
       drawAccept: [
         "Oh! A draw! That's like both of us win?! I LOVE that!!",
         "Draw! We both get a trophy?! BEST DAY EVER!!!",
+        "DRAW!! We BOTH win?! THIS IS THE BEST THING EVER!!",
+        "A DRAW!! Oh my goodness!! I'm so happy!! Are you happy?! I'm happy!!",
+        "TIED!! We're TIED!! I love draws!! I love chess!!",
       ],
       drawRefuse: [
         "Wait no I want to keep playing!! Can we keep playing?! Please?!",
@@ -357,23 +405,25 @@ export const ELO_VALUES = [300, 500, 700, 900, 1100, 1500, 1800, 2100, 2500, 300
 export type EloValue = (typeof ELO_VALUES)[number];
 
 export interface EloConfig {
-  skillLevel: number; // 0–20
-  depth: number;
-  delay: number; // ms before computer plays
   label: string;
+  uciElo?: number;
+  movetime?: number;
+  skillLevel?: number;
+  depth?: number;
+  delay?: number;
 }
 
 export const ELO_CONFIG: Record<EloValue, EloConfig> = {
-  300:  { skillLevel: 0,  depth: 1,  delay: 2000, label: "Beginner"     },
-  500:  { skillLevel: 2,  depth: 3,  delay: 1500, label: "Beginner"     },
-  700:  { skillLevel: 4,  depth: 5,  delay: 1200, label: "Casual"       },
-  900:  { skillLevel: 6,  depth: 7,  delay: 900,  label: "Casual"       },
-  1100: { skillLevel: 8,  depth: 9,  delay: 700,  label: "Intermediate" },
-  1500: { skillLevel: 10, depth: 11, delay: 500,  label: "Club"         },
-  1800: { skillLevel: 13, depth: 13, delay: 350,  label: "Advanced"     },
-  2100: { skillLevel: 15, depth: 15, delay: 200,  label: "Expert"       },
-  2500: { skillLevel: 18, depth: 17, delay: 100,  label: "Master"       },
-  3000: { skillLevel: 20, depth: 20, delay: 50,   label: "Grandmaster"  },
+  300:  { label: "Beginner",     skillLevel: 0,  depth: 1,  delay: 2000 },
+  500:  { label: "Beginner",     skillLevel: 2,  depth: 3,  delay: 1500 },
+  700:  { label: "Casual",       skillLevel: 4,  depth: 5,  delay: 1200 },
+  900:  { label: "Casual",       skillLevel: 6,  depth: 7,  delay: 900  },
+  1100: { label: "Intermediate", skillLevel: 8,  depth: 9,  delay: 700  },
+  1500: { label: "Club",         uciElo: 1500,   movetime: 150  },
+  1800: { label: "Advanced",     uciElo: 1800,   movetime: 300  },
+  2100: { label: "Expert",       uciElo: 2100,   movetime: 600  },
+  2500: { label: "Master",       uciElo: 2500,   movetime: 1200 },
+  3000: { label: "Grandmaster",  uciElo: 3190,   movetime: 2000 },
 };
 
 export function getEloLabel(elo: EloValue): string {
