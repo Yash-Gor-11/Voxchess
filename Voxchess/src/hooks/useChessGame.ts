@@ -40,12 +40,24 @@ export function useChessGame() {
     bump();
   }, [bump]);
 
-  const reset = useCallback(() => {
-    gameRef.current.reset();
+  const reset = useCallback((fromFen?: string) => {
+    if (fromFen) {
+      gameRef.current.load(fromFen);
+    } else {
+      gameRef.current.reset();
+    }
     bump();
   }, [bump]);
 
   const exportPgn = useCallback(() => gameRef.current.pgn(), []);
+
+  const loadMoves = useCallback((moves: string[]) => {
+    gameRef.current = new Chess();
+    for (const san of moves) {
+      try { gameRef.current.move(san); } catch { break; }
+    }
+    bump();
+  }, [bump]);
 
   const game = gameRef.current;
 
@@ -57,6 +69,7 @@ export function useChessGame() {
     moveSan,
     undo,
     reset,
+    loadMoves,   // ← add
     exportPgn,
     isCheck: game.isCheck(),
     isGameOver: game.isGameOver(),
