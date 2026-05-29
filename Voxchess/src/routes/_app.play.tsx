@@ -103,7 +103,7 @@ function MenuSeparator() {
 // ── Component ──────────────────────────────────────────────────────────────
 function PlayPage() {
   const { game, fen, history, move, moveSan, undo, reset, loadMoves, exportPgn, isCheck, isGameOver, turn } =
-  useChessGame();
+    useChessGame();
   const { evaluation, evaluate } = useStockfish();
   const { boardThemeIndex } = useSettingsStore();
   const setActivateChessCallback = useVoiceStore((s) => s.setActivateChessCallback);
@@ -133,7 +133,10 @@ function PlayPage() {
   const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string } | null>(null);
   const [personalityVisible, setPersonalityVisible] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-
+  const [gameOverLabel, setGameOverLabel] = useState("");
+  const [gameOverAvatarState, setGameOverAvatarState] = useState<AvatarState>("idle");
+  const [gameOverAvatarText, setGameOverAvatarText] = useState("");
+  const [gameEnded, setGameEnded] = useState(false);
   // ── Hint state ───────────────────────────────────────────────────────────
   const [hintStage, setHintStage] = useState<0 | 1 | 2>(0);
   const [hintFrom, setHintFrom] = useState<string | null>(null);
@@ -180,10 +183,10 @@ function PlayPage() {
   }, [isComputerTurn, fen]);
 
   useEffect(() => {
-  if (restoredRef.current || !savedGame?.history?.length) return;
-  restoredRef.current = true;
-  loadMoves(savedGame.history);  // ← was reset(savedGame.fen)
-}, []);
+    if (restoredRef.current || !savedGame?.history?.length) return;
+    restoredRef.current = true;
+    loadMoves(savedGame.history);  // ← was reset(savedGame.fen)
+  }, []);
 
   // Keep the chessboard callback stable across unrelated page updates.
   const handlePieceDrop = useCallback(
@@ -342,31 +345,42 @@ function PlayPage() {
   }, [isCheck]); // eslint-disable-line
 
   useEffect(() => {
-  if (!gameStarted || isGameOver) return;
-  localStorage.setItem("voxchess_game", JSON.stringify({
-    fen,
-    history,        // ← was missing
-    playerColor,
-    elo: ELO_VALUES[eloIndex],
-    eloIndex,
-    personalityId,
-  }));
-}, [fen, history, playerColor, eloIndex, personalityId, gameStarted, isGameOver]);
+    if (!gameStarted || isGameOver) return;
+    localStorage.setItem("voxchess_game", JSON.stringify({
+      fen,
+      history,        // ← was missing
+      playerColor,
+      elo: ELO_VALUES[eloIndex],
+      eloIndex,
+      personalityId,
+    }));
+  }, [fen, history, playerColor, eloIndex, personalityId, gameStarted, isGameOver]);
 
   // Game over
   useEffect(() => {
     if (!isGameOver || !gameStarted) return;
+    setGameEnded(true);
     computerThinkingRef.current = false;
     setComputerThinking(false);
+    setGameOverLabel(getGameOverLabel(game));
     setOverOpen(true);
     const result = getGameResult(game);
     const playerWon = result === (playerColor === "w" ? "white" : "black");
     if (playerWon) {
-      speakAvatar(pickRandom(currentPersonality.responses.lose), "lose", 0);
+      const text = pickRandom(currentPersonality.responses.lose);
+      setGameOverAvatarState("lose");
+      setGameOverAvatarText(text);
+      speakAvatar(text, "lose", 0);
     } else if (result === "draw") {
-      speakAvatar(pickRandom(currentPersonality.responses.drawAccept), "draw", 0);
+      const text = pickRandom(currentPersonality.responses.drawAccept);
+      setGameOverAvatarState("draw");
+      setGameOverAvatarText(text);
+      speakAvatar(text, "draw", 0);
     } else {
-      speakAvatar(pickRandom(currentPersonality.responses.win), "win", 0);
+      const text = pickRandom(currentPersonality.responses.win);
+      setGameOverAvatarState("win");
+      setGameOverAvatarText(text);
+      speakAvatar(text, "win", 0);
     }
   }, [isGameOver]);
 
@@ -381,6 +395,7 @@ function PlayPage() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   function handleNewGame() {
+    setGameEnded(false);
     localStorage.removeItem("voxchess_game");
     reset();
     computerThinkingRef.current = false;
@@ -389,6 +404,7 @@ function PlayPage() {
     setHintStage(0);
     setHintFrom(null);
     setHintTo(null);
+    setGameOverLabel("");
     setAvatarState("idle");
     setAvatarText("");
     if (avatarTimeoutRef.current) clearTimeout(avatarTimeoutRef.current);
@@ -423,11 +439,15 @@ function PlayPage() {
   }
 
   async function handleResign() {
+    setGameEnded(true);
     const result = computerColor === "w" ? "white" : "black";
     try { await saveGame(exportPgn(), result); } catch { }
-    speakAvatar(pickRandom(currentPersonality.responses.win), "win", 0);
-    handleNewGame();
-    toast("You resigned");
+    const text = pickRandom(currentPersonality.responses.win);
+    setGameOverAvatarState("win");
+    setGameOverAvatarText(text);
+    setGameOverLabel("You resigned");
+    speakAvatar(text, "win", 0);
+    setOverOpen(true);
   }
 
   function handleHint() {
@@ -454,10 +474,15 @@ function PlayPage() {
     const evalFromComputer = computerColor === "w" ? evalScore : -evalScore;
     const computerAccepts = evalFromComputer <= 50;
     if (computerAccepts) {
-      speakAvatar(pickRandom(currentPersonality.responses.drawAccept), "draw");
+      const text = pickRandom(currentPersonality.responses.drawAccept);
+      setGameOverAvatarState("draw");
+      setGameOverAvatarText(text);
+      speakAvatar(text, "draw", 0);
       setTimeout(async () => {
+        setGameEnded(true);
         try { await saveGame(exportPgn(), "draw"); } catch { }
-        handleNewGame();
+        setGameOverLabel("Draw agreed");
+        setOverOpen(true);
         toast("Draw accepted");
       }, 2000);
     } else {
@@ -620,6 +645,7 @@ function PlayPage() {
             <button
               onClick={() => {
                 // New game, same settings — don't go to setup
+                setGameEnded(false);
                 reset();
                 localStorage.removeItem("voxchess_game");
                 computerThinkingRef.current = false;
@@ -647,16 +673,20 @@ function PlayPage() {
 
               {menuOpen && (
                 <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-md shadow-lg py-1 z-50">
-                  <MenuItem label="Undo" icon={Undo2} disabled={moveCount < 2}
+                  <MenuItem label="Undo" icon={Undo2}
+                    disabled={moveCount < 2 || gameEnded}
                     onClick={() => { handleUndo(); setMenuOpen(false); }} />
-                  <MenuItem label={hintLabel} icon={Lightbulb} disabled={isComputerTurn}
+                  <MenuItem label={hintLabel} icon={Lightbulb}
+                    disabled={isComputerTurn || gameEnded}
                     onClick={() => { handleHint(); setMenuOpen(false); }} />
-                  <MenuItem label="Offer Draw" icon={Handshake} disabled={isComputerTurn || moveCount < 20}
-                    onClick={() => { handleDrawOffer(); setMenuOpen(false); }} />
+                  <MenuItem label={hintLabel} icon={Lightbulb}
+                    disabled={isComputerTurn || gameEnded}
+                    onClick={() => { handleHint(); setMenuOpen(false); }} />
                   <MenuSeparator />
                   <MenuItem label="Save" icon={Save}
                     onClick={() => { handleSave(); setMenuOpen(false); }} />
-                  <MenuItem label="Resign" icon={Flag} disabled={moveCount < 4} destructive
+                  <MenuItem label="Resign" icon={Flag}
+                    disabled={moveCount < 4 || gameEnded} destructive
                     onClick={() => { handleResign(); setMenuOpen(false); }} />
                   <MenuSeparator />
                   <MenuItem label="Flip Board" icon={FlipHorizontal2}
@@ -737,7 +767,7 @@ function PlayPage() {
           <div className={`flex flex-col gap-3 ${isPortrait ? "" : "min-h-0 overflow-hidden lg:h-full"}`}>
 
             {/* Personality panel */}
-            {personalityVisible && !isGameOver && (
+            {personalityVisible && !gameEnded && (
               <Card className="p-4 shrink-0">
                 <div className="flex items-start gap-3">
                   <div className="shrink-0 w-16 h-16">
@@ -855,12 +885,12 @@ function PlayPage() {
 
         <GameOverDialog
           open={overOpen}
-          result={getGameOverLabel(game)}
+          result={gameOverLabel}
           onClose={() => setOverOpen(false)}
           onNew={handleNewGame}
           personality={currentPersonality}
-          avatarState={avatarState}
-          avatarText={avatarText}
+          avatarState={gameOverAvatarState}
+          avatarText={gameOverAvatarText}
         />
       </div>
     </div>

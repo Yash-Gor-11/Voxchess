@@ -48,7 +48,18 @@ export const PERSONALITIES: Personality[] = [
       pitch: 0.55,
       rate: 0.88,
       volume: 1.0,
-      preferredVoices: ["Google UK English Male", "Daniel", "Arthur", "Microsoft George", "en-GB-male"],
+      preferredVoices: [
+  "Google UK English Male",   // Chrome / Android
+  "Microsoft George",         // Windows (UK male, if installed)
+  "Daniel",                   // macOS / iOS (UK male)
+  "Arthur",                   // macOS UK male variant
+  "Alex",                     // macOS US male
+  "Tom",                      // macOS US male
+  "Microsoft Mark",           // Windows US male
+  "Microsoft David",          // Windows US male fallback
+  "Fred",                     // macOS robotic fallback
+],
+
     },
     responses: {
       moveQuips: [
@@ -120,7 +131,16 @@ export const PERSONALITIES: Personality[] = [
       pitch: 0.9,
       rate: 0.84,
       volume: 0.9,
-      preferredVoices: ["Google UK English Male", "Daniel", "Arthur", "Microsoft George"],
+      preferredVoices: [
+  "Daniel",                   // macOS / iOS UK male
+  "Google UK English Male",   // Chrome / Android
+  "Microsoft George",         // Windows UK male
+  "Arthur",                   // macOS UK variant
+  "Alex",                     // macOS US male
+  "Microsoft Mark",           // Windows US male
+  "Tom",                      // macOS US male
+  "Microsoft David",          // Windows US fallback
+],
     },
     responses: {
       moveQuips: [
@@ -194,7 +214,15 @@ export const PERSONALITIES: Personality[] = [
       pitch: 1.15,
       rate: 1.18,
       volume: 1.0,
-      preferredVoices: ["Google US English", "Alex", "Tom", "Microsoft Guy", "en-US-male"],
+      preferredVoices: [
+  "Alex",                     // macOS US male (default, natural)
+  "Tom",                      // macOS US male
+  "Microsoft Mark",           // Windows US male
+  "Microsoft David",          // Windows US male
+  "Google UK English Male",   // Chrome fallback (still male)
+  "Daniel",                   // macOS fallback (still male)
+  "Fred",                     // macOS robotic, still male
+],
     },
     responses: {
       moveQuips: [
@@ -266,7 +294,18 @@ export const PERSONALITIES: Personality[] = [
       pitch: 0.65,
       rate: 0.76,
       volume: 0.85,
-      preferredVoices: ["Google UK English Female", "Serena", "Martha", "Microsoft Hazel", "en-GB-female"],
+      preferredVoices: [
+  "Google UK English Female", // Chrome / Android
+  "Serena",                   // macOS UK female
+  "Martha",                   // macOS UK female
+  "Microsoft Hazel",          // Windows UK female
+  "Microsoft Susan",          // Windows UK female variant
+  "Karen",                    // macOS Australian female
+  "Moira",                    // macOS Irish female
+  "Victoria",                 // macOS US female (lower tone)
+  "Microsoft Zira",           // Windows US female fallback
+  "Samantha",                 // macOS US female fallback
+],
     },
     responses: {
       moveQuips: [
@@ -340,7 +379,17 @@ export const PERSONALITIES: Personality[] = [
       pitch: 1.5,
       rate: 1.4,
       volume: 1.0,
-      preferredVoices: ["Google US English", "Samantha", "Zira", "Microsoft Zira", "en-US"],
+      preferredVoices: [
+  "Microsoft Zira",           // Windows US female
+  "Samantha",                 // macOS / iOS US female (default)
+  "Google US English",        // Chrome US female
+  "Tessa",                    // macOS South African female (bright)
+  "Karen",                    // macOS Australian female
+  "Moira",                    // macOS Irish female
+  "Victoria",                 // macOS US female
+  "Google UK English Female", // Chrome fallback (still female)
+  "Serena",                   // macOS UK female fallback
+],
     },
     responses: {
       moveQuips: [
