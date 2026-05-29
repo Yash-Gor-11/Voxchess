@@ -10,6 +10,10 @@ import {
   RotateCcw,
   GripIcon,
   MessageSquare,
+  MoreHorizontal,
+  FlipHorizontal2,
+  Cpu,
+  Check,
 } from "lucide-react";
 import { uciPvToSan } from "@/lib/chess/pvUtils";
 import { Card } from "@/components/ui/card";
@@ -36,26 +40,10 @@ export const Route = createFileRoute("/_app/analysis/$gameId")({
 });
 
 const NUMBER_WORDS: Record<string, number> = {
-  one: 1,
-  two: 2,
-  three: 3,
-  four: 4,
-  five: 5,
-  six: 6,
-  seven: 7,
-  eight: 8,
-  nine: 9,
-  ten: 10,
-  eleven: 11,
-  twelve: 12,
-  thirteen: 13,
-  fourteen: 14,
-  fifteen: 15,
-  sixteen: 16,
-  seventeen: 17,
-  eighteen: 18,
-  nineteen: 19,
-  twenty: 20,
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+  nineteen: 19, twenty: 20,
 };
 
 function renderMoveTree(
@@ -103,8 +91,6 @@ function renderMoveTree(
   });
 }
 
-// Compute initial board size from viewport dimensions.
-
 function calcInitialBoardSize(): number {
   if (typeof window === "undefined") return 480;
   const vw = window.innerWidth;
@@ -118,10 +104,44 @@ function calcInitialBoardSize(): number {
   const evalBarW = 40;
   const padding = 48;
   const availW = vw - sidebarW - rightPanelW - evalBarW - padding;
-  const availH = vh - 64 - 40 - 52 - 52 - padding; // header, voicebar, topbar, navctrl, padding
+  const availH = vh - 64 - 40 - 52 - 52 - padding;
   return Math.min(Math.max(Math.min(availH, availW), 180), 600);
 }
 
+// ── Menu helpers (same pattern as play.tsx) ────────────────────────────────
+interface MenuItemProps {
+  label: string;
+  icon: React.ElementType;
+  onClick: () => void;
+  disabled?: boolean;
+  checked?: boolean;
+  isCheckbox?: boolean;
+}
+
+function MenuItem({ label, icon: Icon, onClick, disabled, checked, isCheckbox }: MenuItemProps) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-accent disabled:opacity-40 disabled:pointer-events-none"
+    >
+      {isCheckbox ? (
+        <span className="h-4 w-4 flex items-center justify-center">
+          {checked && <Check className="h-3 w-3" />}
+        </span>
+      ) : (
+        <Icon className="h-4 w-4 shrink-0" />
+      )}
+      {label}
+    </button>
+  );
+}
+
+function MenuSeparator() {
+  return <div className="my-1 border-t border-border" />;
+}
+
+// ── AnalysisPage ────────────────────────────────────────────────────────────
 function AnalysisPage() {
   const { gameId } = Route.useParams();
   const navigate = useNavigate();
@@ -140,32 +160,43 @@ function AnalysisPage() {
     typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false,
   );
   const [boardSize, setBoardSize] = useState(calcInitialBoardSize);
-  const [contextMenu, setContextMenu] = useState<{
-    x: number; y: number; node: TreeNode;
-  } | null>(null);
-  const [commentModal, setCommentModal] = useState<{
-    node: TreeNode; text: string;
-  } | null>(null);
-  const [pendingPromotion, setPendingPromotion] = useState<{
-    from: string; to: string;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: TreeNode } | null>(null);
+  const [commentModal, setCommentModal] = useState<{ node: TreeNode; text: string } | null>(null);
+  const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string } | null>(null);
+
+  // ── New state ──────────────────────────────────────────────────────────────
+  const [flipped, setFlipped] = useState(false);
+  const [engineVisible, setEngineVisible] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Card ref used to clamp drag max to card's inner dimensions
   const boardCardRef = useRef<HTMLDivElement>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<AnalysisTree | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { setActivateChessCallback } = useVoiceStore();
   const { boardThemeIndex } = useSettingsStore();
   const boardTheme = BOARD_THEMES[boardThemeIndex] ?? BOARD_THEMES[0];
 
-  // Recalculate initial size on window resize (only when user hasn't manually dragged)
   const userResizedRef = useRef(false);
-  // Replace the existing resize useEffect with this single one
+
+  const boardOrientation: "white" | "black" = flipped ? "black" : "white";
+
+  // ── Outside click to close menu ────────────────────────────────────────────
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [menuOpen]);
+
   useEffect(() => {
     function onResize() {
       const portrait = window.innerWidth < window.innerHeight;
       setIsPortrait(portrait);
-      // Reset user resize flag when switching to portrait — no drag handle in portrait
       if (portrait) userResizedRef.current = false;
       if (!userResizedRef.current) {
         setBoardSize(calcInitialBoardSize());
@@ -175,10 +206,7 @@ function AnalysisPage() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // ── Drag-to-resize logic ──────────────────────────────────────────────────
-  // We track the pointer position delta from where the drag started and
-  // add that to the board size at drag start. The board stays square so
-  // both width and height grow/shrink by the same amount.
+  // ── Drag-to-resize ─────────────────────────────────────────────────────────
   const dragStartRef = useRef<{ x: number; y: number; size: number } | null>(null);
 
   const onDragHandlePointerDown = useCallback(
@@ -194,24 +222,18 @@ function AnalysisPage() {
   const onDragHandlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragStartRef.current) return;
     e.preventDefault();
-
-    // Delta: moving right/down = bigger, left/up = smaller
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
     const delta = (dx + dy) / 2;
     const newRaw = dragStartRef.current.size + delta;
-
-    // Clamp: min 180px, max = smaller of card's inner width/height minus eval bar
     const card = boardCardRef.current;
     let maxSize = 600;
     if (card) {
       const rect = card.getBoundingClientRect();
-      // Card inner size minus eval bar (32px) minus gap (8px) minus nav controls (52px) minus padding (24px)
       const maxW = rect.width - 32 - 8 - 24;
       const maxH = rect.height - 52 - 24;
       maxSize = Math.min(maxW, maxH, 600);
     }
-
     userResizedRef.current = true;
     setBoardSize(Math.min(Math.max(newRaw, 180), maxSize));
   }, []);
@@ -220,9 +242,7 @@ function AnalysisPage() {
     dragStartRef.current = null;
   }, []);
 
-  useEffect(() => {
-    treeRef.current = tree;
-  }, [tree]);
+  useEffect(() => { treeRef.current = tree; }, [tree]);
 
   useEffect(() => {
     async function load() {
@@ -230,19 +250,13 @@ function AnalysisPage() {
         const game = await getGame(gameId);
         const startFen = game.fen ?? "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         const t = new AnalysisTree(startFen);
-
         if (game.pgn) {
           const parsed = parseSinglePgn(game.pgn);
-          if (parsed?.moves.length) {
-            t.loadMainLine(parsed.moves);
-          }
+          if (parsed?.moves.length) t.loadMainLine(parsed.moves);
         }
-        // FEN-only: tree has just the root node, that's correct
-
         treeRef.current = t;
         setTree(t);
         setCurrentNode(t.root);
-
         try {
           const saved = await getAnnotations(gameId);
           if (saved?.tree) {
@@ -251,9 +265,7 @@ function AnalysisPage() {
             t.current = restoredRoot;
             setCurrentNode(restoredRoot);
           }
-        } catch {
-          /* no annotations yet */
-        }
+        } catch { /* no annotations yet */ }
       } catch {
         toast.error("Could not load game");
       } finally {
@@ -314,36 +326,11 @@ function AnalysisPage() {
       Object.entries(NUMBER_WORDS).forEach(([word, num]) => {
         normalized = normalized.replace(new RegExp(`\\b${word}\\b`, "g"), String(num));
       });
-      if (/\b(first|start|beginning)\b/.test(normalized)) {
-        first();
-        setResult({ ok: true, message: "First move" });
-        setStatus("success");
-        return;
-      }
-      if (/\b(last|end|final)\b/.test(normalized)) {
-        last();
-        setResult({ ok: true, message: "Last move" });
-        setStatus("success");
-        return;
-      }
-      if (/\b(back|previous|prev)\b/.test(normalized)) {
-        prev();
-        setResult({ ok: true, message: "Previous" });
-        setStatus("success");
-        return;
-      }
-      if (/\b(next|forward)\b/.test(normalized)) {
-        next();
-        setResult({ ok: true, message: "Next" });
-        setStatus("success");
-        return;
-      }
-      if (/\b(main line|mainline)\b/.test(normalized)) {
-        backToMainLine();
-        setResult({ ok: true, message: "Main line" });
-        setStatus("success");
-        return;
-      }
+      if (/\b(first|start|beginning)\b/.test(normalized)) { first(); setResult({ ok: true, message: "First move" }); setStatus("success"); return; }
+      if (/\b(last|end|final)\b/.test(normalized)) { last(); setResult({ ok: true, message: "Last move" }); setStatus("success"); return; }
+      if (/\b(back|previous|prev)\b/.test(normalized)) { prev(); setResult({ ok: true, message: "Previous" }); setStatus("success"); return; }
+      if (/\b(next|forward)\b/.test(normalized)) { next(); setResult({ ok: true, message: "Next" }); setStatus("success"); return; }
+      if (/\b(main line|mainline)\b/.test(normalized)) { backToMainLine(); setResult({ ok: true, message: "Main line" }); setStatus("success"); return; }
       const jumpMatch = normalized.match(/(?:go to|jump to|move|goto)\s+(\d+)/);
       if (jumpMatch) {
         const moveNum = parseInt(jumpMatch[1]);
@@ -362,10 +349,7 @@ function AnalysisPage() {
   );
 
   const activateVoice = useCallback(() => {
-    if (!isSpeechSupported()) {
-      toast.error("Voice requires Chrome or Edge");
-      return;
-    }
+    if (!isSpeechSupported()) { toast.error("Voice requires Chrome or Edge"); return; }
     if (isListening) return;
     setIsListening(true);
     setActive("chess");
@@ -384,21 +368,10 @@ function AnalysisPage() {
       },
       onEnd: () => {
         setIsListening(false);
-        if (!resultReceived) {
-          setActive(null);
-          setStatus("idle");
-        } else {
-          setTimeout(() => {
-            setActive(null);
-            setStatus("idle");
-          }, 1500);
-        }
+        if (!resultReceived) { setActive(null); setStatus("idle"); }
+        else { setTimeout(() => { setActive(null); setStatus("idle"); }, 1500); }
       },
-      onError: () => {
-        setIsListening(false);
-        setActive(null);
-        setStatus("error");
-      },
+      onError: () => { setIsListening(false); setActive(null); setStatus("error"); },
     });
   }, [isListening, handleVoiceCommand, setActive, setStatus, setTranscript, setResult]);
 
@@ -410,24 +383,11 @@ function AnalysisPage() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const el = document.activeElement as HTMLElement | null;
-      const inputFocused =
-        !!el &&
-        (el instanceof HTMLInputElement ||
-          el instanceof HTMLTextAreaElement ||
-          el.isContentEditable);
+      const inputFocused = !!el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el.isContentEditable);
       if (inputFocused) return;
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        prev();
-      }
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        next();
-      }
-      if (e.code === "Space") {
-        e.preventDefault();
-        activateVoice();
-      }
+      if (e.key === "ArrowLeft") { e.preventDefault(); prev(); }
+      if (e.key === "ArrowRight") { e.preventDefault(); next(); }
+      if (e.code === "Space") { e.preventDefault(); activateVoice(); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -440,17 +400,9 @@ function AnalysisPage() {
     const isPromotion =
       piece?.type === "p" &&
       ((piece.color === "w" && to[1] === "8") || (piece.color === "b" && to[1] === "1"));
-
-    if (isPromotion) {
-      setPendingPromotion({ from, to });
-      return false; // board resets visually until we confirm
-    }
-
+    if (isPromotion) { setPendingPromotion({ from, to }); return false; }
     const node = treeRef.current.makeMove(`${from}${to}`);
-    if (!node) {
-      toast.error("Illegal move");
-      return false;
-    }
+    if (!node) { toast.error("Illegal move"); return false; }
     setRevision((r) => r + 1);
     setCurrentNode({ ...node });
     return true;
@@ -461,17 +413,12 @@ function AnalysisPage() {
     const { from, to } = pendingPromotion;
     const node = treeRef.current.makeMove(`${from}${to}${piece}`);
     setPendingPromotion(null);
-    if (!node) {
-      toast.error("Illegal move");
-      return;
-    }
+    if (!node) { toast.error("Illegal move"); return; }
     setRevision((r) => r + 1);
     setCurrentNode({ ...node });
   }
 
-  function handleSquareRightClick(square: string) {
-    setRightClickFrom(square);
-  }
+  function handleSquareRightClick(square: string) { setRightClickFrom(square); }
 
   function handleMouseUp(square: string) {
     if (!rightClickFrom) return;
@@ -495,22 +442,16 @@ function AnalysisPage() {
   }
 
   function clearAnnotations() {
-    setArrows([]);
-    setHighlights([]);
-    treeRef.current?.setArrows([]);
-    treeRef.current?.setHighlights([]);
+    setArrows([]); setHighlights([]);
+    treeRef.current?.setArrows([]); treeRef.current?.setHighlights([]);
   }
+
   function startLongPress(node: TreeNode, e: React.PointerEvent) {
-    longPressTimerRef.current = setTimeout(() => {
-      setContextMenu({ x: e.clientX, y: e.clientY, node });
-    }, 500);
+    longPressTimerRef.current = setTimeout(() => setContextMenu({ x: e.clientX, y: e.clientY, node }), 500);
   }
 
   function cancelLongPress() {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
+    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
   }
 
   function openContextMenu(node: TreeNode, e: React.MouseEvent) {
@@ -524,34 +465,25 @@ function AnalysisPage() {
     setCommentModal(null);
     setContextMenu(null);
     if (!treeRef.current) return;
-    try {
-      await saveAnnotations(gameId, treeRef.current.serialize());
-      toast.success("Comment saved");
-    } catch {
-      toast.error("Could not save comment");
-    }
+    try { await saveAnnotations(gameId, treeRef.current.serialize()); toast.success("Comment saved"); }
+    catch { toast.error("Could not save comment"); }
   }
+
   async function handleSave() {
     if (!treeRef.current) return;
     setSaving(true);
-    try {
-      await saveAnnotations(gameId, treeRef.current.serialize());
-      toast.success("Analysis saved");
-    } catch {
-      toast.error("Could not save analysis");
-    }
+    try { await saveAnnotations(gameId, treeRef.current.serialize()); toast.success("Analysis saved"); }
+    catch { toast.error("Could not save analysis"); }
     setSaving(false);
   }
 
   if (loading) return <div className="p-6 text-sm text-muted-foreground">Loading game…</div>;
-  if (!tree || !currentNode)
-    return <div className="p-6 text-sm text-muted-foreground">No positions found.</div>;
+  if (!tree || !currentNode) return <div className="p-6 text-sm text-muted-foreground">No positions found.</div>;
 
   const mainLine = tree.getMainLinePath();
   const isOnMainLine = currentNode.isMainLine;
   const moveNumber = Math.ceil(currentNode.plyIndex / 2);
 
-  // Replace the entire return with this
   return (
     <div className={`flex flex-col p-3 gap-3 ${isPortrait ? "h-full overflow-y-auto" : "h-full overflow-hidden"}`}>
       {/* Top bar */}
@@ -564,46 +496,60 @@ function AnalysisPage() {
           {currentNode.plyIndex === 0 ? "Start" : `Move ${moveNumber}`}
         </Badge>
         {!isOnMainLine && <Badge variant="secondary" className="hidden sm:inline-flex">Variation</Badge>}
-        <div className="ml-auto flex gap-2 shrink-0">
+
+        <div className="ml-auto flex gap-2 shrink-0 items-center">
           {!isOnMainLine && (
             <Button size="sm" variant="outline" onClick={backToMainLine}>
               <RotateCcw className="h-3.5 w-3.5 sm:mr-1.5" />
               <span className="hidden sm:inline">Main line</span>
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={clearAnnotations}>
-            Clear
-          </Button>
+          <Button size="sm" variant="outline" onClick={clearAnnotations}>Clear</Button>
           <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : "Save"}
           </Button>
+
+          {/* ··· menu */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-background hover:bg-accent transition-colors"
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-md shadow-lg py-1 z-50">
+                <MenuItem
+                  label="Flip Board"
+                  icon={FlipHorizontal2}
+                  onClick={() => { setFlipped((f) => !f); setMenuOpen(false); }}
+                />
+                <MenuSeparator />
+                <MenuItem
+                  label="Show Engine"
+                  icon={Cpu}
+                  isCheckbox
+                  checked={engineVisible}
+                  onClick={() => setEngineVisible((v) => !v)}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main grid */}
-      <div
-        className={
-          isPortrait
-            ? "flex flex-col gap-3"
-            : "flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 overflow-hidden"
-        }
-      >
+      <div className={isPortrait ? "flex flex-col gap-3" : "flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 overflow-hidden"}>
         {/* Board card */}
-        <Card
-          ref={boardCardRef}
-          className={`p-3 ${isPortrait ? "shrink-0" : "overflow-hidden"}`}
-        >
-          <div
-            className={`flex flex-col items-center gap-2 ${isPortrait ? "" : "justify-center h-full"
-              }`}
-          >
+        <Card ref={boardCardRef} className={`p-3 ${isPortrait ? "shrink-0" : "overflow-hidden"}`}>
+          <div className={`flex flex-col items-center gap-2 ${isPortrait ? "" : "justify-center h-full"}`}>
             <div className="flex gap-2 items-center">
-              {/* Eval bar */}
-              <div className="flex-shrink-0" style={{ height: boardSize }}>
-                <EvalBar evaluation={evaluation} />
-              </div>
-
-              {/* Board */}
+              {engineVisible && (
+                <div className="flex-shrink-0" style={{ height: boardSize }}>
+                  <EvalBar evaluation={evaluation} />
+                </div>
+              )}
               <div className="relative flex-shrink-0">
                 <div
                   ref={boardContainerRef}
@@ -618,6 +564,7 @@ function AnalysisPage() {
                   <Chessboard
                     options={{
                       position: currentNode.fen,
+                      boardOrientation,
                       onPieceDrop: (args) => {
                         if (!args.targetSquare) return false;
                         return handlePieceDrop(args.sourceSquare, args.targetSquare);
@@ -628,14 +575,8 @@ function AnalysisPage() {
                       lightSquareStyle: { backgroundColor: boardTheme.light },
                     }}
                   />
-                  <BoardOverlay
-                    arrows={arrows}
-                    highlights={highlights}
-                    boardRef={boardContainerRef}
-                  />
+                  <BoardOverlay arrows={arrows} highlights={highlights} boardRef={boardContainerRef} />
                 </div>
-
-                {/* Drag handle — landscape only */}
                 {!isPortrait && (
                   <div
                     className="absolute bottom-0 right-0 z-20 w-6 h-6 flex items-center justify-center rounded-tl-md bg-background/80 border border-border/50 cursor-nwse-resize opacity-40 hover:opacity-100 transition-opacity touch-none select-none"
@@ -652,269 +593,188 @@ function AnalysisPage() {
 
             {/* Nav controls */}
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={first}
-                disabled={currentNode.plyIndex === 0}
-              >
-                <ChevronFirst className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={prev}
-                disabled={currentNode.plyIndex === 0}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
+              <Button size="sm" variant="outline" onClick={first} disabled={currentNode.plyIndex === 0}><ChevronFirst className="h-4 w-4" /></Button>
+              <Button size="sm" variant="outline" onClick={prev} disabled={currentNode.plyIndex === 0}><ChevronLeft className="h-4 w-4" /></Button>
               <span className="text-xs text-muted-foreground font-mono w-20 text-center">
                 {currentNode.plyIndex} / {mainLine.length - 1}
               </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={next}
-                disabled={currentNode.children.length === 0}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={last}
-                disabled={currentNode.children.length === 0}
-              >
-                <ChevronLast className="h-4 w-4" />
-              </Button>
+              <Button size="sm" variant="outline" onClick={next} disabled={currentNode.children.length === 0}><ChevronRight className="h-4 w-4" /></Button>
+              <Button size="sm" variant="outline" onClick={last} disabled={currentNode.children.length === 0}><ChevronLast className="h-4 w-4" /></Button>
             </div>
           </div>
         </Card>
 
         {/* Right panel */}
-        <div
-          className={`flex flex-col gap-3 ${isPortrait ? "" : "min-h-0 overflow-hidden lg:h-full"
-            }`}
-        >
-          {/* Engine card */}
-          <Card className="p-4 shrink-0">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
-              Engine
-            </div>
-            {evaluation ? (
-              <div className="space-y-2">
-                {evaluation.bestMoves.map((m, i) => {
-                  const sanMoves = uciPvToSan(currentNode.fen, m.pv).slice(0, 6);
-                  const scoreLabel =
-                    m.mate !== null
-                      ? `${m.mate > 0 ? "+" : "-"}M${Math.abs(m.mate)}`
-                      : `${m.score >= 0 ? "+" : ""}${(m.score / 100).toFixed(1)}`;
-                  return (
-                    <div
-                      key={i}
-                      className="flex items-start gap-2 text-sm py-1 border-b border-border/30 last:border-0"
-                    >
-                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] w-5 h-5 p-0 flex items-center justify-center"
-                        >
-                          {i + 1}
-                        </Badge>
-                        <span
-                          className={`font-mono text-xs font-semibold w-12 ${m.score > 0
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : m.score < 0
-                              ? "text-destructive"
-                              : "text-muted-foreground"
-                            }`}
-                        >
-                          {scoreLabel}
+        <div className={`flex flex-col gap-3 ${isPortrait ? "" : "min-h-0 overflow-hidden lg:h-full"}`}>
+
+          {/* Engine card — toggleable */}
+          {engineVisible && (
+            <Card className="p-4 shrink-0">
+              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">Engine</div>
+              {evaluation ? (
+                <div className="space-y-2">
+                  {evaluation.bestMoves.map((m, i) => {
+                    const sanMoves = uciPvToSan(currentNode.fen, m.pv).slice(0, 6);
+                    const scoreLabel =
+                      m.mate !== null
+                        ? `${m.mate > 0 ? "+" : "-"}M${Math.abs(m.mate)}`
+                        : `${m.score >= 0 ? "+" : ""}${(m.score / 100).toFixed(1)}`;
+                    return (
+                      <div key={i} className="flex items-start gap-2 text-sm py-1 border-b border-border/30 last:border-0">
+                        <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                          <Badge variant="outline" className="text-[10px] w-5 h-5 p-0 flex items-center justify-center">{i + 1}</Badge>
+                          <span className={`font-mono text-xs font-semibold w-12 ${m.score > 0 ? "text-emerald-600 dark:text-emerald-400" : m.score < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                            {scoreLabel}
+                          </span>
+                        </div>
+                        <span className="font-mono text-xs text-muted-foreground leading-relaxed">
+                          {sanMoves.join(" ")} {sanMoves.length === 6 ? "..." : ""}
                         </span>
                       </div>
-                      <span className="font-mono text-xs text-muted-foreground leading-relaxed">
-                        {sanMoves.join(" ")} {sanMoves.length === 6 ? "..." : ""}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : engineError ? (
-              <div className="text-xs text-destructive">Engine failed to load</div>
-            ) : (
-              <div className="text-xs text-muted-foreground">Analysing…</div>
-            )}
-          </Card>
+                    );
+                  })}
+                </div>
+              ) : engineError ? (
+                <div className="text-xs text-destructive">Engine failed to load</div>
+              ) : (
+                <div className="text-xs text-muted-foreground">Analysing…</div>
+              )}
+            </Card>
+          )}
 
           {/* Moves card */}
-          <Card
-            className={`p-4 flex flex-col ${isPortrait ? "min-h-64" : "flex-1 min-h-0"
-              }`}
-          >
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 shrink-0">
-              Moves
-            </div>
+          <Card className={`p-4 flex flex-col ${isPortrait ? "min-h-64" : "flex-1 min-h-0"}`}>
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 shrink-0">Moves</div>
             <ScrollArea className={isPortrait ? "h-64" : "flex-1 min-h-0"}>
               <table className="w-full text-xs font-mono">
                 <tbody>
-                  {Array.from(
-                    { length: Math.ceil((mainLine.length - 1) / 2) },
-                    (_, i) => {
-                      const whiteNode = mainLine[i * 2 + 1];
-                      const blackNode = mainLine[i * 2 + 2];
-                      const whiteVars = whiteNode?.parent?.children.slice(1) ?? [];
-                      const blackVars = blackNode?.parent?.children.slice(1) ?? [];
-                      const wComment = whiteNode?.comment;
-                      const bComment = blackNode?.comment;
+                  {Array.from({ length: Math.ceil((mainLine.length - 1) / 2) }, (_, i) => {
+                    const whiteNode = mainLine[i * 2 + 1];
+                    const blackNode = mainLine[i * 2 + 2];
+                    const whiteVars = whiteNode?.parent?.children.slice(1) ?? [];
+                    const blackVars = blackNode?.parent?.children.slice(1) ?? [];
+                    const wComment = whiteNode?.comment;
+                    const bComment = blackNode?.comment;
 
-                      const makeMoveTd = (node: TreeNode | undefined, colSpan = 1) =>
-                        node ? (
-                          <td className={`py-1 pr-2 ${colSpan === 2 ? "w-[90%]" : "w-[45%]"}`} colSpan={colSpan}>
-                            <button
-                              onClick={() => goToNode(node)}
-                              onContextMenu={(e) => openContextMenu(node, e)}
-                              onPointerDown={(e) => startLongPress(node, e)}
-                              onPointerUp={cancelLongPress}
-                              onPointerCancel={cancelLongPress}
-                              className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${currentNode.id === node.id
-                                ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold"
-                                : ""
-                                }`}
-                            >
-                              {node.san}
-                            </button>
-                          </td>
-                        ) : (
-                          <td colSpan={colSpan} />
-                        );
+                    const makeMoveTd = (node: TreeNode | undefined, colSpan = 1) =>
+                      node ? (
+                        <td className={`py-1 pr-2 ${colSpan === 2 ? "w-[90%]" : "w-[45%]"}`} colSpan={colSpan}>
+                          <button
+                            onClick={() => goToNode(node)}
+                            onContextMenu={(e) => openContextMenu(node, e)}
+                            onPointerDown={(e) => startLongPress(node, e)}
+                            onPointerUp={cancelLongPress}
+                            onPointerCancel={cancelLongPress}
+                            className={`px-1.5 py-0.5 rounded w-full text-left hover:bg-muted transition-colors ${currentNode.id === node.id ? "bg-[var(--accent-chess)]/20 text-[var(--accent-chess)] font-semibold" : ""}`}
+                          >
+                            {node.san}
+                          </button>
+                        </td>
+                      ) : (<td colSpan={colSpan} />);
 
-                      const commentRow = (node: TreeNode) => (
-                        <tr key={`comment-${node.id}`}>
-                          <td colSpan={3} className="pb-1.5 px-1">
-                            <div
-                              className="text-[11px] text-muted-foreground italic leading-relaxed bg-muted/40 rounded px-2 py-1 cursor-pointer hover:bg-muted/70 transition-colors"
-                              onContextMenu={(e) => openContextMenu(node, e)}
-                              onPointerDown={(e) => startLongPress(node, e)}
-                              onPointerUp={cancelLongPress}
-                              onPointerCancel={cancelLongPress}
-                            >
-                              <MessageSquare className="inline h-3 w-3 mr-1 opacity-60" />
-                              {node.comment}
-                            </div>
-                          </td>
+                    const commentRow = (node: TreeNode) => (
+                      <tr key={`comment-${node.id}`}>
+                        <td colSpan={3} className="pb-1.5 px-1">
+                          <div
+                            className="text-[11px] text-muted-foreground italic leading-relaxed bg-muted/40 rounded px-2 py-1 cursor-pointer hover:bg-muted/70 transition-colors"
+                            onContextMenu={(e) => openContextMenu(node, e)}
+                            onPointerDown={(e) => startLongPress(node, e)}
+                            onPointerUp={cancelLongPress}
+                            onPointerCancel={cancelLongPress}
+                          >
+                            <MessageSquare className="inline h-3 w-3 mr-1 opacity-60" />
+                            {node.comment}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+
+                    const varRow = (whiteVars.length > 0 || blackVars.length > 0) && (
+                      <tr key={`vars-${i}`}>
+                        <td colSpan={3} className="py-1 pl-4 pb-2">
+                          <div className="text-muted-foreground italic leading-6">
+                            {whiteVars.map((v) => (<span key={v.id}>{"("}{renderMoveTree([v], currentNode.id, goToNode)}{") "}</span>))}
+                            {blackVars.map((v) => (<span key={v.id}>{"("}{renderMoveTree([v], currentNode.id, goToNode)}{") "}</span>))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+
+                    if (!wComment && !bComment) return (
+                      <Fragment key={i}>
+                        <tr className="border-b border-border/20 last:border-0">
+                          <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
+                          {makeMoveTd(whiteNode)}{makeMoveTd(blackNode)}
                         </tr>
-                      );
+                        {varRow}
+                      </Fragment>
+                    );
 
-                      const varRow = (whiteVars.length > 0 || blackVars.length > 0) && (
-                        <tr key={`vars-${i}`}>
-                          <td colSpan={3} className="py-1 pl-4 pb-2">
-                            <div className="text-muted-foreground italic leading-6">
-                              {whiteVars.map((v) => (
-                                <span key={v.id}>{"("}{renderMoveTree([v], currentNode.id, goToNode)}{") "}</span>
-                              ))}
-                              {blackVars.map((v) => (
-                                <span key={v.id}>{"("}{renderMoveTree([v], currentNode.id, goToNode)}{") "}</span>
-                              ))}
-                            </div>
-                          </td>
+                    if (wComment && !bComment) return (
+                      <Fragment key={i}>
+                        <tr className="border-b border-border/20">
+                          <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
+                          {makeMoveTd(whiteNode)}
+                          <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
                         </tr>
-                      );
-
-                      // Case 1: no comments — normal paired row
-                      if (!wComment && !bComment) {
-                        return (
-                          <Fragment key={i}>
-                            <tr className="border-b border-border/20 last:border-0">
-                              <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
-                              {makeMoveTd(whiteNode)}
-                              {makeMoveTd(blackNode)}
-                            </tr>
-                            {varRow}
-                          </Fragment>
-                        );
-                      }
-
-                      // Case 2: white has comment, black doesn't
-                      if (wComment && !bComment) {
-                        return (
-                          <Fragment key={i}>
-                            <tr className="border-b border-border/20">
-                              <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
-                              {makeMoveTd(whiteNode)}
-                              <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
-                            </tr>
-                            {commentRow(whiteNode)}
-                            {blackNode && (
-                              <tr className="border-b border-border/20 last:border-0">
-                                <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}…</td>
-                                <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
-                                {makeMoveTd(blackNode)}
-                              </tr>
-                            )}
-                            {varRow}
-                          </Fragment>
-                        );
-                      }
-
-                      // Case 3: black has comment, white doesn't
-                      if (!wComment && bComment) {
-                        return (
-                          <Fragment key={i}>
-                            <tr className="border-b border-border/20">
-                              <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
-                              {makeMoveTd(whiteNode)}
-                              {makeMoveTd(blackNode)}
-                            </tr>
-                            {commentRow(blackNode!)}
-                            {varRow}
-                          </Fragment>
-                        );
-                      }
-
-                      // Case 4: both have comments
-                      return (
-                        <Fragment key={i}>
-                          <tr className="border-b border-border/20">
-                            <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
-                            {makeMoveTd(whiteNode)}
+                        {commentRow(whiteNode)}
+                        {blackNode && (
+                          <tr className="border-b border-border/20 last:border-0">
+                            <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}…</td>
                             <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
+                            {makeMoveTd(blackNode)}
                           </tr>
-                          {commentRow(whiteNode!)}
-                          {blackNode && (
-                            <tr className="border-b border-border/20">
-                              <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}…</td>
-                              <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
-                              {makeMoveTd(blackNode)}
-                            </tr>
-                          )}
-                          {commentRow(blackNode!)}
-                          {varRow}
-                        </Fragment>
-                      );
-                    },
-                  )}
+                        )}
+                        {varRow}
+                      </Fragment>
+                    );
+
+                    if (!wComment && bComment) return (
+                      <Fragment key={i}>
+                        <tr className="border-b border-border/20">
+                          <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
+                          {makeMoveTd(whiteNode)}{makeMoveTd(blackNode)}
+                        </tr>
+                        {commentRow(blackNode!)}
+                        {varRow}
+                      </Fragment>
+                    );
+
+                    return (
+                      <Fragment key={i}>
+                        <tr className="border-b border-border/20">
+                          <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}.</td>
+                          {makeMoveTd(whiteNode)}
+                          <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
+                        </tr>
+                        {commentRow(whiteNode!)}
+                        {blackNode && (
+                          <tr className="border-b border-border/20">
+                            <td className="py-1 pr-2 text-muted-foreground w-8">{i + 1}…</td>
+                            <td className="py-1 pr-2 w-[45%] text-muted-foreground px-1.5">…</td>
+                            {makeMoveTd(blackNode)}
+                          </tr>
+                        )}
+                        {commentRow(blackNode!)}
+                        {varRow}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </ScrollArea>
           </Card>
         </div>
       </div>
+
       {/* Context menu */}
       {contextMenu && (
         <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setContextMenu(null)}
-          />
-          <div
-            className="fixed z-50 bg-card border border-border rounded-md shadow-md py-1 text-sm"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-          >
+          <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
+          <div className="fixed z-50 bg-card border border-border rounded-md shadow-md py-1 text-sm" style={{ top: contextMenu.y, left: contextMenu.x }}>
             <button
               className="w-full text-left px-4 py-2 hover:bg-muted transition-colors"
-              onClick={() =>
-                setCommentModal({ node: contextMenu.node, text: contextMenu.node.comment ?? "" })
-              }
+              onClick={() => setCommentModal({ node: contextMenu.node, text: contextMenu.node.comment ?? "" })}
             >
               {contextMenu.node.comment ? "Edit comment" : "Add comment"}
             </button>
@@ -941,40 +801,27 @@ function AnalysisPage() {
               value={commentModal.text}
               onChange={(e) => setCommentModal({ ...commentModal, text: e.target.value })}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey))
-                  handleSaveComment(commentModal.node, commentModal.text);
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSaveComment(commentModal.node, commentModal.text);
                 if (e.key === "Escape") setCommentModal(null);
               }}
             />
             <div className="flex justify-between gap-2">
               <div>
                 {commentModal.node.comment && (
-                  <button
-                    className="text-sm px-3 py-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-colors"
-                    onClick={() => handleSaveComment(commentModal.node, "")}
-                  >
+                  <button className="text-sm px-3 py-1.5 rounded-md hover:bg-destructive/10 text-destructive transition-colors" onClick={() => handleSaveComment(commentModal.node, "")}>
                     Delete
                   </button>
                 )}
               </div>
               <div className="flex gap-2">
-                <button
-                  className="text-sm px-3 py-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground"
-                  onClick={() => setCommentModal(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="text-sm px-4 py-1.5 rounded-md bg-[var(--accent-blue)] text-white hover:opacity-90 transition-opacity"
-                  onClick={() => handleSaveComment(commentModal.node, commentModal.text)}
-                >
-                  OK
-                </button>
+                <button className="text-sm px-3 py-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground" onClick={() => setCommentModal(null)}>Cancel</button>
+                <button className="text-sm px-4 py-1.5 rounded-md bg-[var(--accent-blue)] text-white hover:opacity-90 transition-opacity" onClick={() => handleSaveComment(commentModal.node, commentModal.text)}>OK</button>
               </div>
             </div>
           </div>
         </div>
       )}
+
       {pendingPromotion && currentNode && (
         <PromotionPickerModal
           color={new Chess(currentNode.fen).turn()}
