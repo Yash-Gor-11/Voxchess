@@ -401,29 +401,63 @@ export function pickRandom<T>(arr: T[]): T {
 }
 
 // ELO → Stockfish config
-export const ELO_VALUES = [300, 500, 700, 900, 1100, 1500, 1800, 2100, 2500, 3000] as const;
-export type EloValue = (typeof ELO_VALUES)[number];
+export const ELO_VALUES: EloValue[] = [
+  300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300,
+  1500, 1600, 1700, 1800, 1900,
+  2000, 2100, 2200, 2300, 2400, 2500,
+  2600, 2700, 2800, 2900, 3000,
+];
+export type EloValue =
+  | 300 | 400 | 500 | 600 | 700 | 800 | 900 | 1000 | 1100 | 1200 | 1300
+  | 1500 | 1600 | 1700 | 1800 | 1900
+  | 2000 | 2100 | 2200 | 2300 | 2400 | 2500
+  | 2600 | 2700 | 2800 | 2900 | 3000;
 
 export interface EloConfig {
   label: string;
-  uciElo?: number;
-  movetime?: number;
+  // Engine UCI params
   skillLevel?: number;
   depth?: number;
+  uciElo?: number;
+  movetime?: number;
   delay?: number;
+  requestedDepth?: number;
+  // Human error model
+  multiPv?: number;      // lines to request — needs > 1 for errorRate to work
+  blunderRate?: number;  // 0–1: chance of a completely random legal move
+  errorRate?: number;    // 0–1: chance of picking a non-best MultiPV line
+  cpTolerance?: number;  // centipawns: max drop from best for mistake candidates
 }
 
 export const ELO_CONFIG: Record<EloValue, EloConfig> = {
-  300:  { label: "Beginner",     skillLevel: 0,  depth: 1,  delay: 2000 },
-  500:  { label: "Beginner",     skillLevel: 2,  depth: 3,  delay: 1500 },
-  700:  { label: "Casual",       skillLevel: 4,  depth: 5,  delay: 1200 },
-  900:  { label: "Casual",       skillLevel: 6,  depth: 7,  delay: 900  },
-  1100: { label: "Intermediate", skillLevel: 8,  depth: 9,  delay: 700  },
-  1500: { label: "Club",         uciElo: 1500,   movetime: 150  },
-  1800: { label: "Advanced",     uciElo: 1800,   movetime: 300  },
-  2100: { label: "Expert",       uciElo: 2100,   movetime: 600  },
-  2500: { label: "Master",       uciElo: 2500,   movetime: 1200 },
-  3000: { label: "Grandmaster",  uciElo: 3190,   movetime: 2000 },
+  300: { label: "Beginner", depth: 1, skillLevel: 0, multiPv: 3, blunderRate: 0.22, errorRate: 0.55, cpTolerance: 300, delay: 500 },
+  400: { label: "Beginner", depth: 1, skillLevel: 1, multiPv: 3, blunderRate: 0.18, errorRate: 0.50, cpTolerance: 275, delay: 500 },
+  500: { label: "Beginner", depth: 1, skillLevel: 2, multiPv: 3, blunderRate: 0.14, errorRate: 0.45, cpTolerance: 250, delay: 600 },
+  600: { label: "Casual", depth: 2, skillLevel: 3, multiPv: 3, blunderRate: 0.11, errorRate: 0.38, cpTolerance: 200, delay: 700 },
+  700: { label: "Casual", depth: 2, skillLevel: 4, multiPv: 3, blunderRate: 0.09, errorRate: 0.32, cpTolerance: 175, delay: 800 },
+  800: { label: "Casual", depth: 3, skillLevel: 5, multiPv: 3, blunderRate: 0.07, errorRate: 0.26, cpTolerance: 150, delay: 900 },
+  900: { label: "Intermediate", depth: 3, skillLevel: 6, multiPv: 3, blunderRate: 0.05, errorRate: 0.20, cpTolerance: 120, delay: 1000 },
+  1000: { label: "Intermediate", depth: 4, skillLevel: 8, multiPv: 3, blunderRate: 0.03, errorRate: 0.15, cpTolerance: 90, delay: 1000 },
+  1100: { label: "Intermediate", depth: 5, skillLevel: 10, multiPv: 3, blunderRate: 0.02, errorRate: 0.10, cpTolerance: 60, delay: 1200 },
+  1200: { label: "Club", depth: 6, skillLevel: 12, multiPv: 3, blunderRate: 0.01, errorRate: 0.07, cpTolerance: 35, delay: 1500 },
+  1300: { label: "Club", depth: 7, skillLevel: 14, multiPv: 2, blunderRate: 0.00, errorRate: 0.04, cpTolerance: 20, delay: 1500 },
+  // 1500+ uses UCI_Elo — full strength engine, no error injection
+  1500: { label: "Club Player", uciElo: 1500, movetime: 1000, delay: 1500 },
+  1600: { label: "Club Player", uciElo: 1600, movetime: 1200, delay: 1500 },
+  1700: { label: "Club Player", uciElo: 1700, movetime: 1400, delay: 1500 },
+  1800: { label: "Advanced", uciElo: 1800, movetime: 1600, delay: 1500 },
+  1900: { label: "Advanced", uciElo: 1900, movetime: 1800, delay: 1500 },
+  2000: { label: "Expert", uciElo: 2000, movetime: 2000, delay: 2000 },
+  2100: { label: "Expert", uciElo: 2100, movetime: 2200, delay: 2000 },
+  2200: { label: "Expert", uciElo: 2200, movetime: 2500, delay: 2000 },
+  2300: { label: "Candidate Master", uciElo: 2300, movetime: 2800, delay: 2000 },
+  2400: { label: "Candidate Master", uciElo: 2400, movetime: 3200, delay: 2000 },
+  2500: { label: "Master", uciElo: 2500, movetime: 3600, delay: 2000 },
+  2600: { label: "Master", uciElo: 2600, movetime: 4200, delay: 2000 },
+  2700: { label: "Grandmaster", uciElo: 2700, movetime: 5000, delay: 2000 },
+  2800: { label: "Grandmaster", uciElo: 2800, movetime: 6000, delay: 2000 },
+  2900: { label: "Super GM", uciElo: 2900, movetime: 7000, delay: 1500 },
+  3000: { label: "Stockfish", uciElo: 3000, movetime: 9000, delay: 1000 },
 };
 
 export function getEloLabel(elo: EloValue): string {

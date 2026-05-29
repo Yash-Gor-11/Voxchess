@@ -70,7 +70,6 @@ export class StockfishEngine {
       sf.setNnueBuffer(smallNnue, 1);
 
       this.send("uci");
-      this.send("setoption name MultiPV value 3");
       this.send("isready");
     } catch (err) {
       console.error("Failed to start Stockfish:", err);
@@ -88,7 +87,7 @@ export class StockfishEngine {
   }
 
   private send(cmd: string) {
-    const initCmds = ["uci", "setoption name MultiPV value 3", "isready"];
+    const initCmds = ["uci", "isready"];
     if (!this.sf) {
       if (!initCmds.includes(cmd)) this.queue.push(cmd);
       return;
@@ -192,6 +191,9 @@ export class StockfishEngine {
       this.evalTimeout = null;
     }
     this.send("stop");
+
+    // Set MultiPV dynamically — needs > 1 for the human error model in useStockfish to work
+    this.send(`setoption name MultiPV value ${config.multiPv ?? 1}`);
 
     if (config.uciElo !== undefined) {
       this.send("setoption name UCI_LimitStrength value true");
