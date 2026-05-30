@@ -51,16 +51,16 @@ function applyHumanError(
 
   // Layer 2 — Mistake: pick a suboptimal line from MultiPV results
   if (errorRate > 0 && Math.random() < errorRate && eval_.bestMoves.length > 1) {
-    let candidates = eval_.bestMoves;
+    let candidates = eval_.bestMoves.slice(1); // exclude best move at index 0
 
     // Layer 3 — cpTolerance: only consider moves within X cp of best
     // This makes mistakes feel like "missed a tactic" rather than random drops
     if (cpTolerance > 0) {
       const bestScore = eval_.bestMoves[0].score;
-      const withinTolerance = eval_.bestMoves.filter(
+      const withinTolerance = eval_.bestMoves.slice(1).filter(
         (m) => m.mate === null && bestScore - m.score <= cpTolerance,
       );
-      if (withinTolerance.length > 1) candidates = withinTolerance;
+      if (withinTolerance.length > 0) candidates = withinTolerance;
     }
 
     const chosen = candidates[Math.floor(Math.random() * candidates.length)];

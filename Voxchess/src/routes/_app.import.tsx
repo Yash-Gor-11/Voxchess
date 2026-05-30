@@ -102,46 +102,48 @@ function ImportPage() {
     const [mode, setMode] = useState<Mode>("pgn");
 
     return (
-        <div className="p-6 max-w-2xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex items-center gap-3">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => navigate({ to: "/games" })}
-                    aria-label="Back to games"
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div>
-                    <h2 className="text-lg font-semibold">Import</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Add games to your library
-                    </p>
-                </div>
-            </div>
-
-            {/* Mode tabs */}
-            <div className="flex border-b">
-                {(["pgn", "fen", "url"] as Mode[]).map((m) => (
-                    <button
-                        key={m}
-                        onClick={() => setMode(m)}
-                        className={cn(
-                            "px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
-                            mode === m
-                                ? "border-primary text-primary"
-                                : "border-transparent text-muted-foreground hover:text-foreground",
-                        )}
+        <div className="h-full overflow-y-auto">
+            <div className="p-6 max-w-2xl mx-auto space-y-6">
+                {/* Header */}
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigate({ to: "/games" })}
+                        aria-label="Back to games"
                     >
-                        {m.toUpperCase()}
-                    </button>
-                ))}
-            </div>
+                        <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <div>
+                        <h2 className="text-lg font-semibold">Import</h2>
+                        <p className="text-sm text-muted-foreground">
+                            Add games to your library
+                        </p>
+                    </div>
+                </div>
 
-            {mode === "pgn" && <PgnPanel navigate={navigate} />}
-            {mode === "fen" && <FenPanel navigate={navigate} />}
-            {mode === "url" && <UrlPanel navigate={navigate} />}
+                {/* Mode tabs */}
+                <div className="flex border-b">
+                    {(["pgn", "fen", "url"] as Mode[]).map((m) => (
+                        <button
+                            key={m}
+                            onClick={() => setMode(m)}
+                            className={cn(
+                                "px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+                                mode === m
+                                    ? "border-primary text-primary"
+                                    : "border-transparent text-muted-foreground hover:text-foreground",
+                            )}
+                        >
+                            {m.toUpperCase()}
+                        </button>
+                    ))}
+                </div>
+
+                {mode === "pgn" && <PgnPanel navigate={navigate} />}
+                {mode === "fen" && <FenPanel navigate={navigate} />}
+                {mode === "url" && <UrlPanel navigate={navigate} />}
+            </div>
         </div>
     );
 }
