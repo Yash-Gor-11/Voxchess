@@ -51,6 +51,39 @@ export function useChessGame() {
 
   const exportPgn = useCallback(() => gameRef.current.pgn(), []);
 
+  const loadPgn = useCallback(
+  (pgn: string, startFen?: string | null) => {
+    const chess = new Chess();
+
+    // zero-move custom position
+    if (!pgn?.trim()) {
+      if (startFen) {
+        try {
+          chess.load(startFen);
+        } catch {}
+      }
+
+      gameRef.current = chess;
+      bump();
+      return;
+    }
+
+    try {
+      chess.loadPgn(pgn);
+    } catch {
+      // fallback path for malformed PGN or transitional data
+      if (startFen) {
+        try {
+          chess.load(startFen);
+        } catch {}
+      }
+    }
+
+    gameRef.current = chess;
+    bump();
+  },
+  [bump],
+);
   const loadMoves = useCallback((moves: string[]) => {
     gameRef.current = new Chess();
     for (const san of moves) {
@@ -70,6 +103,7 @@ export function useChessGame() {
     undo,
     reset,
     loadMoves,   // ← add
+    loadPgn,    // ← add
     exportPgn,
     isCheck: game.isCheck(),
     isGameOver: game.isGameOver(),

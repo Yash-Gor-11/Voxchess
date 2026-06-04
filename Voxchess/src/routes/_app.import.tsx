@@ -292,13 +292,29 @@ function FenPanel({ navigate }: { navigate: NavigateFn }) {
                 />
             </div>
 
-            <Button
-                className="w-full"
-                onClick={handleImport}
-                disabled={!isValid || saving}
-            >
-                {saving ? "Saving…" : "Open in Analysis"}
-            </Button>
+            <div className="flex gap-2">
+                <Button
+                    className="flex-1"
+                    variant="outline"
+                    onClick={() => navigate({
+  to: "/play",
+  search: {
+    fen: fen.trim(),
+    sourceType: "imported_fen",
+  },
+})}
+                    disabled={!isValid || saving}
+                >
+                    Play vs Bot
+                </Button>
+                <Button
+                    className="flex-1"
+                    onClick={handleImport}
+                    disabled={!isValid || saving}
+                >
+                    {saving ? "Saving…" : "Open in Analysis"}
+                </Button>
+            </div>
         </div>
     );
 }

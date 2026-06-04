@@ -8,7 +8,10 @@ export interface StockfishEval {
 }
 
 type EvalCallback = (e: StockfishEval) => void;
-type StockfishFactory = () => Promise<StockfishWeb> | StockfishWeb;
+type StockfishFactory = (moduleArg?: {
+  locateFile?: (path: string, prefix: string) => string;
+  mainScriptUrlOrBlob?: string | Blob;
+}) => Promise<StockfishWeb>;
 
 interface StockfishWeb {
   uci(command: string): void;
@@ -18,9 +21,49 @@ interface StockfishWeb {
   onError: (msg: string) => void;
 }
 
-const STOCKFISH_MODULE_PATH = "sf_18.js";
-const FALLBACK_NNUE_FILES = ["nn-c288c895ea92.nnue", "nn-37f18f62d772.nnue"] as const;
+// Module-level singleton: factory is only imported and called once.
+// Emscripten cannot run two instances from the same cached module.
+let sfInstance: Promise<StockfishWeb> | null = null;
+let stockfishScriptUrl: string | null = null;
 
+async function getStockfishScriptUrl(): Promise<string> {
+  if (stockfishScriptUrl) return stockfishScriptUrl;
+
+  const response = await fetch("/sf_18.js");
+  if (!response.ok) {
+    throw new Error(`Failed to load Stockfish module: ${response.status} ${response.statusText}`);
+  }
+
+  const source = await response.text();
+  stockfishScriptUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+  return stockfishScriptUrl;
+}
+
+async function getEngine(): Promise<StockfishWeb> {
+  if (!sfInstance) {
+    sfInstance = (async () => {
+      const scriptUrl = await getStockfishScriptUrl();
+      const { default: factory } = await import(/* @vite-ignore */ scriptUrl) as {
+        default: StockfishFactory;
+      };
+      const sf = await factory({
+        locateFile: (path) => `/${path}`,
+        mainScriptUrlOrBlob: scriptUrl,
+      });
+      const FALLBACK = ["nn-c288c895ea92.nnue", "nn-37f18f62d772.nnue"] as const;
+      const bigName = sf.getRecommendedNnue(0) || FALLBACK[0];
+      const smallName = sf.getRecommendedNnue(1) || FALLBACK[1];
+      const [big, small] = await Promise.all([
+        fetch(`/${bigName}`).then(r => r.arrayBuffer()).then(b => new Uint8Array(b)),
+        fetch(`/${smallName}`).then(r => r.arrayBuffer()).then(b => new Uint8Array(b)),
+      ]);
+      sf.setNnueBuffer(big, 0);
+      sf.setNnueBuffer(small, 1);
+      return sf;
+    })();
+  }
+  return sfInstance;
+}
 export class StockfishEngine {
   private sf: StockfishWeb | null = null;
   private onEval: EvalCallback | null = null;
@@ -41,49 +84,19 @@ export class StockfishEngine {
     if (typeof window === "undefined") return;
 
     try {
-      const moduleUrl = new URL(STOCKFISH_MODULE_PATH, `${window.location.origin}/`).href;
-      const { default: StockfishFactory } = (await import(/* @vite-ignore */ moduleUrl)) as {
-        default: StockfishFactory;
-      };
-      const sf: StockfishWeb = await StockfishFactory();
-      if (this.destroyed) {
-        sf.uci("quit");
-        return;
-      }
+      const sf = await getEngine();
+      if (this.destroyed) return;
 
       this.sf = sf;
-
-      sf.onError = (msg) => {
-        console.error("Stockfish error:", msg);
-        onError?.();
-      };
-
+      sf.onError = (msg) => { console.error("[SF] error:", msg); onError?.(); };
       sf.listen = (line: string) => this.handleMessage(line);
-
-      const [bigNnue, smallNnue] = await Promise.all([this.loadNnue(sf, 0), this.loadNnue(sf, 1)]);
-      if (this.destroyed) {
-        sf.uci("quit");
-        return;
-      }
-
-      sf.setNnueBuffer(bigNnue, 0);
-      sf.setNnueBuffer(smallNnue, 1);
 
       this.send("uci");
       this.send("isready");
     } catch (err) {
-      console.error("Failed to start Stockfish:", err);
+      console.error("[SF] init failed:", err);
       onError?.();
     }
-  }
-
-  private async loadNnue(sf: StockfishWeb, index: 0 | 1): Promise<Uint8Array> {
-    const filename = sf.getRecommendedNnue(index) || FALLBACK_NNUE_FILES[index];
-    const response = await fetch(`/${filename}`);
-    if (!response.ok) {
-      throw new Error(`Failed to load Stockfish NNUE file ${filename}: ${response.status} ${response.statusText}`);
-    }
-    return new Uint8Array(await response.arrayBuffer());
   }
 
   private send(cmd: string) {
@@ -100,15 +113,15 @@ export class StockfishEngine {
   }
 
   private handleMessage(line: string) {
-    if (line.startsWith("bestmove ")) {
-      this.handleBestMove(line);
-      return;
-    }
-
     if (line === "readyok") {
       this.isReady = true;
       this.queue.forEach((cmd) => this.sf?.uci(cmd));
       this.queue = [];
+      return;
+    }
+
+    if (line.startsWith("bestmove ")) {
+      this.handleBestMove(line);
       return;
     }
 
@@ -130,39 +143,31 @@ export class StockfishEngine {
     if (depth < this.minInfoDepth) return;
 
     const score = scoreType === "mate" ? (scoreVal > 0 ? 10000 : -10000) : scoreVal;
-
     this.bestMoves[multipv - 1] = { move, pv: pvString, score, scoreType, scoreVal };
     this.scoreByMultiPV[multipv] = { type: scoreType, val: scoreVal };
     this.latestDepth = depth;
-
     this.scheduleEval();
   }
 
   private handleBestMove(line: string) {
     const move = line.split(/\s+/)[1];
     if (!move || move === "(none)") return;
-
     if (!this.bestMoves[0]) {
       this.bestMoves[0] = { move, pv: move, score: 0, scoreType: "cp", scoreVal: 0 };
     }
-
     this.scheduleEval(0);
   }
 
   private scheduleEval(delay = 200) {
     if (this.evalTimeout) clearTimeout(this.evalTimeout);
-    this.evalTimeout = setTimeout(() => {
-      this.publishEval();
-    }, delay);
+    this.evalTimeout = setTimeout(() => this.publishEval(), delay);
   }
 
   private publishEval() {
     if (!this.bestMoves[0]) return;
-
     const pv1Score = this.scoreByMultiPV[1];
     const normalizedScore = (this.bestMoves[0].score ?? 0) * this.activeSide;
     const normalizedMate = pv1Score?.type === "mate" ? pv1Score.val * this.activeSide : null;
-
     const bestMoves = this.bestMoves
       .map((m) => {
         if (!m) return null;
@@ -174,7 +179,6 @@ export class StockfishEngine {
         };
       })
       .filter((m): m is { move: string; pv: string; score: number; mate: number | null } => m !== null);
-
     this.onEval?.({ score: normalizedScore, mate: normalizedMate, bestMoves, depth: this.latestDepth });
   }
 
@@ -186,13 +190,9 @@ export class StockfishEngine {
     this.scoreByMultiPV = {};
     this.latestDepth = 0;
     this.activeSide = fen.split(" ")[1] === "b" ? -1 : 1;
-    if (this.evalTimeout) {
-      clearTimeout(this.evalTimeout);
-      this.evalTimeout = null;
-    }
-    this.send("stop");
+    if (this.evalTimeout) { clearTimeout(this.evalTimeout); this.evalTimeout = null; }
 
-    // Set MultiPV dynamically — needs > 1 for the human error model in useStockfish to work
+    this.send("stop");
     this.send(`setoption name MultiPV value ${config.multiPv ?? 1}`);
 
     if (config.uciElo !== undefined) {
@@ -210,18 +210,18 @@ export class StockfishEngine {
     }
   }
 
-  stop() {
-    this.send("stop");
-  }
+  stop() { this.send("stop"); }
 
   destroy() {
     this.destroyed = true;
-    if (this.evalTimeout) {
-      clearTimeout(this.evalTimeout);
-      this.evalTimeout = null;
+    if (this.evalTimeout) { clearTimeout(this.evalTimeout); this.evalTimeout = null; }
+    // Do NOT call quit: the singleton sf instance is shared.
+    // Just detach the callbacks and reset state
+    if (this.sf) {
+      this.sf.uci("stop");
+      this.sf.listen = () => {};
+      this.sf.onError = () => {};
     }
-    this.sf?.uci("stop");
-    this.sf?.uci("quit");
     this.sf = null;
     this.isReady = false;
     this.queue = [];

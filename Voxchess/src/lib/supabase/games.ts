@@ -17,6 +17,10 @@ export interface GameMetadata {
   name?: string;
   note?: string;
   ChapterName?: string;
+  // Play settings
+  eloIndex?: number;
+  personalityId?: string;
+  playerColor?: string;
 }
 
 export interface Game {
@@ -30,10 +34,15 @@ export interface Game {
   metadata: GameMetadata | null;
   study_id: string | null;
   fen: string | null;
+  start_fen: string | null;
+  source_type: string | null;
+  source_game_id: string | null;
+  source_node_id: string | null;
   chapter_index: number | null;
   created_at: string;
   updated_at: string;
 }
+
 
 export interface Study {
   id: string;
@@ -60,9 +69,16 @@ async function currentUser() {
 // Games — existing (unchanged behaviour, updated return type)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function saveGame(pgn: string, result: string = "ongoing"): Promise<Game> {
+export async function saveGame(
+  pgn: string,
+  result: string = "ongoing",
+  startFen: string | null = null,
+  sourceType: string | null = null,
+  sourceGameId: string | null = null,
+  sourceNodeId: string | null = null,
+  playSettings?: { eloIndex: number; personalityId: string; playerColor: string },
+): Promise<Game> {
   const user = await currentUser();
-
   const { data, error } = await supabase
     .from("games")
     .insert({
@@ -71,10 +87,36 @@ export async function saveGame(pgn: string, result: string = "ongoing"): Promise
       result,
       mode: "solo",
       type: "platform",
+      start_fen: startFen,
+      source_type: sourceType,
+      source_game_id: sourceGameId,
+      source_node_id: sourceNodeId,
+      metadata: playSettings ? (playSettings as unknown as Json) : null,
     })
     .select()
     .single();
+  if (error) throw error;
+  return data as Game;
+}
 
+export async function updateGame(
+  id: string,
+  pgn: string,
+  result: string,
+  playSettings?: { eloIndex: number; personalityId: string; playerColor: string },
+): Promise<Game> {
+  const user = await currentUser();
+  const { data, error } = await supabase
+    .from("games")
+    .update({
+      pgn,
+      result,
+      ...(playSettings ? { metadata: playSettings as unknown as Json } : {}),
+    })
+    .eq("id", id)
+    .eq("white_id", user.id)
+    .select()
+    .single();
   if (error) throw error;
   return data as Game;
 }
@@ -106,7 +148,7 @@ export async function getPlatformGames(): Promise<Game[]> {
 
   if (error) throw error;
   return (data ?? []) as Game[];
-  
+
 }
 
 /** Returns imported games and saved FEN positions (type = 'imported'). */
@@ -287,12 +329,8 @@ export async function saveImportedGame(
 }
 
 /** Save a bare FEN position with no moves (type = 'imported'). */
-export async function saveFenPosition(
-  fen: string,
-  name: string,
-): Promise<Game> {
+export async function saveFenPosition(fen: string, name: string): Promise<Game> {
   const user = await currentUser();
-
   const { data, error } = await supabase
     .from("games")
     .insert({
@@ -302,11 +340,11 @@ export async function saveFenPosition(
       mode: "solo",
       type: "imported",
       fen,
+      start_fen: fen,   // ← add this
       metadata: { name } as unknown as Json,
     })
     .select()
     .single();
-
   if (error) throw error;
   return data as Game;
 }

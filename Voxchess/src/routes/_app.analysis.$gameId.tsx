@@ -14,6 +14,7 @@ import {
   FlipHorizontal2,
   Cpu,
   Check,
+  Swords,
 } from "lucide-react";
 import { uciPvToSan } from "@/lib/chess/pvUtils";
 import { Card } from "@/components/ui/card";
@@ -205,7 +206,10 @@ function AnalysisPage() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-
+  useEffect(() => {
+  console.log("[ANALYSIS] mounted");
+  return () => console.log("[ANALYSIS] unmounted");
+}, []);
   // ── Drag-to-resize ─────────────────────────────────────────────────────────
   const dragStartRef = useRef<{ x: number; y: number; size: number } | null>(null);
 
@@ -248,12 +252,10 @@ function AnalysisPage() {
     async function load() {
       try {
         const game = await getGame(gameId);
-        const startFen = game.fen ?? "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        const parsed = game.pgn ? parseSinglePgn(game.pgn) : null;
+        const startFen = parsed?.startFen ?? game.start_fen ?? "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         const t = new AnalysisTree(startFen);
-        if (game.pgn) {
-          const parsed = parseSinglePgn(game.pgn);
-          if (parsed?.moves.length) t.loadMainLine(parsed.moves);
-        }
+        if (parsed?.moves.length) t.loadMainLine(parsed.moves);
         treeRef.current = t;
         setTree(t);
         setCurrentNode(t.root);
@@ -525,6 +527,23 @@ function AnalysisPage() {
                   icon={FlipHorizontal2}
                   onClick={() => { setFlipped((f) => !f); setMenuOpen(false); }}
                 />
+                <MenuSeparator />
+                <MenuItem
+  label="Continue vs Bot"
+  icon={Swords}
+  onClick={() => {
+    navigate({
+  to: "/play",
+  search: {
+    fen: currentNode.fen,
+    sourceGameId: gameId,
+    sourceNodeId: currentNode.id,
+    sourceType: "analysis",
+  },
+});
+    setMenuOpen(false);
+  }}
+/>
                 <MenuSeparator />
                 <MenuItem
                   label="Show Engine"

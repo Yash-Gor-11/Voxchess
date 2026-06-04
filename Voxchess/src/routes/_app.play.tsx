@@ -1,5 +1,5 @@
 // src/routes/_app/play.tsx
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, useRef } from "react";
 import {
   Bot, User, Plus, ChevronLeft, MoreHorizontal,
@@ -18,7 +18,7 @@ import { useChessVoice } from "@/hooks/useChessVoice";
 import { useStockfish } from "@/hooks/useStockfish";
 import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 import { useVoiceStore } from "@/stores/voiceStore";
-import { saveGame } from "@/lib/supabase/games";
+import { saveGame, updateGame, getGame } from "@/lib/supabase/games";
 import { PromotionPickerModal } from "@/components/chess/PromotionPickerModal";
 import { Chess } from "chess.js";
 import {
@@ -26,8 +26,28 @@ import {
   type PersonalityId, type AvatarState, type EloValue,
 } from "@/lib/chess/personalities";
 import { selectVoice } from "@/lib/voice/selectVoice";
+import { hashText } from "@/lib/voice/hashText";
+
+type PlaySearch = {
+  fen?: string;
+  gameId?: string;
+  sourceGameId?: string;
+  sourceNodeId?: string;
+  sourceType?: "analysis" | "imported_fen";
+};
+
+type PlayMode = "resume-game" | "continue-position" | "new-game";
 
 export const Route = createFileRoute("/_app/play")({
+  validateSearch: (search: Record<string, unknown>): PlaySearch => ({
+    fen: typeof search.fen === "string" ? search.fen : undefined,
+    gameId: typeof search.gameId === "string" ? search.gameId : undefined,
+    sourceGameId: typeof search.sourceGameId === "string" ? search.sourceGameId : undefined,
+    sourceNodeId: typeof search.sourceNodeId === "string" ? search.sourceNodeId : undefined,
+    sourceType: search.sourceType === "analysis" || search.sourceType === "imported_fen"
+      ? search.sourceType
+      : undefined,
+  }),
   head: () => ({ meta: [{ title: "Play — VoxChess" }] }),
   component: PlayPage,
 });
@@ -102,13 +122,23 @@ function MenuSeparator() {
 
 // ── Component ──────────────────────────────────────────────────────────────
 function PlayPage() {
-  const { game, fen, history, move, moveSan, undo, reset, loadMoves, exportPgn, isCheck, isGameOver, turn } =
+  const navigate = useNavigate();
+  const { game, fen, history, move, moveSan, undo, reset, loadMoves, loadPgn, exportPgn, isCheck, isGameOver, turn } =
     useChessGame();
   const { evaluation, evaluate } = useStockfish();
   const { boardThemeIndex } = useSettingsStore();
   const setActivateChessCallback = useVoiceStore((s) => s.setActivateChessCallback);
   const boardTheme = BOARD_THEMES[boardThemeIndex] ?? BOARD_THEMES[0];
+  const { fen: startFen, gameId: urlGameId, sourceGameId, sourceNodeId, sourceType: routeSourceType } = Route.useSearch();
+  const playMode: PlayMode = urlGameId
+    ? "resume-game"
+    : startFen
+      ? "continue-position"
+      : "new-game";
 
+  if (urlGameId && startFen) {
+    console.error("[PlayMode] Invalid route: both gameId and fen provided. gameId takes precedence.");
+  }
   // ── Setup state ──────────────────────────────────────────────────────────
   const [savedGame] = useState(() => {
     try {
@@ -117,11 +147,13 @@ function PlayPage() {
     } catch { return null; }
   });
 
-  const [gameStarted, setGameStarted] = useState(() => !!savedGame);
+  const [gameStarted, setGameStarted] = useState(
+    playMode === "new-game" && !!savedGame
+  );
   const [playerColor, setPlayerColor] = useState<"w" | "b">(savedGame?.playerColor ?? "w");
   const [eloIndex, setEloIndex] = useState(savedGame?.eloIndex ?? 5);
   const [personalityId, setPersonalityId] = useState<PersonalityId>(savedGame?.personalityId ?? "frost");
-
+  const [startingFen, setStartingFen] = useState<string | null>(savedGame?.startFen ?? null);
   // ── Game state ───────────────────────────────────────────────────────────
   const [computerThinking, setComputerThinking] = useState(false);
   const [overOpen, setOverOpen] = useState(false);
@@ -137,6 +169,8 @@ function PlayPage() {
   const [gameOverAvatarState, setGameOverAvatarState] = useState<AvatarState>("idle");
   const [gameOverAvatarText, setGameOverAvatarText] = useState("");
   const [gameEnded, setGameEnded] = useState(false);
+  const [sessionKind, setSessionKind] = useState<"new" | "game">("new");
+  const [currentGameId, setCurrentGameId] = useState<string | null>(null);
   // ── Hint state ───────────────────────────────────────────────────────────
   const [hintStage, setHintStage] = useState<0 | 1 | 2>(0);
   const [hintFrom, setHintFrom] = useState<string | null>(null);
@@ -155,6 +189,7 @@ function PlayPage() {
   const computerColor = playerColor === "w" ? "b" : "w";
   const isComputerTurn = gameStarted && !isGameOver && turn === (computerColor === "w" ? "white" : "black");
   const restoredRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [fenHistory, setFenHistory] = useState<string[]>(() => [fen]);
   const [viewIndex, setViewIndex] = useState(0);
@@ -166,26 +201,28 @@ function PlayPage() {
   useEffect(() => { isAtLatestRef.current = isAtLatest; }, [isAtLatest]);
   useEffect(() => { fenHistoryLengthRef.current = fenHistory.length; }, [fenHistory.length]);
   useEffect(() => {
-    const chess = new Chess();
-    const fens: string[] = [chess.fen()];
+    const initialFen = startingFen ?? new Chess().fen();
+    const chess = new Chess(initialFen);
+    const fens: string[] = [initialFen];
     for (const san of history) {
       chess.move(san);
       fens.push(chess.fen());
     }
     setFenHistory(fens);
     setViewIndex(fens.length - 1);
-  }, [history.length]);
+  }, [history.length, startingFen]);
 
-  // Update refs so callback always has latest values without causing re-renders
-  useEffect(() => {
-    isComputerTurnRef.current = isComputerTurn;
-    fenRef.current = fen;
-  }, [isComputerTurn, fen]);
+  isComputerTurnRef.current = isComputerTurn;
+  fenRef.current = fen;
 
   useEffect(() => {
-    if (restoredRef.current || !savedGame?.history?.length) return;
+    if (restoredRef.current || !savedGame || playMode !== "new-game") return;
     restoredRef.current = true;
-    loadMoves(savedGame.history);  // ← was reset(savedGame.fen)
+    if (savedGame.pgn !== undefined) {
+      loadPgn(savedGame.pgn ?? "", savedGame.startFen ?? null);
+    } else if (savedGame.history?.length) {
+      loadMoves(savedGame.history);
+    }
   }, []);
 
   // Keep the chessboard callback stable across unrelated page updates.
@@ -279,8 +316,10 @@ function PlayPage() {
 
   // ── Avatar helpers ────────────────────────────────────────────────────────
   function speakAvatar(text: string, state: AvatarState = "talking", duration = 4000) {
+
     setAvatarText(text);
     setAvatarState(state);
+
     if (avatarTimeoutRef.current) clearTimeout(avatarTimeoutRef.current);
     if (state !== "win" && state !== "lose" && state !== "draw") {
       avatarTimeoutRef.current = setTimeout(() => {
@@ -288,18 +327,42 @@ function PlayPage() {
         setAvatarText("");
       }, duration);
     }
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance(text);
-      const v = currentPersonality.voice;
-      utt.pitch = v.pitch;
-      utt.rate = v.rate;
-      utt.volume = v.volume ?? 1.0;
-      const voice = selectVoice(v.preferredVoices);
-      if (voice) utt.voice = voice;
-      window.speechSynthesis.speak(utt);
+
+    // Fully stop and release any currently playing audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
     }
+    // Cancel any queued browser TTS
+    window.speechSynthesis?.cancel();
+
+    const volume = currentPersonality.voice.volume ?? 1.0;
+    const hash = hashText(text);
+    const audio = new Audio(`/characters/${currentPersonality.id}/audio/${hash}.mp3`);
+    audio.volume = volume;
+    audioRef.current = audio;
+
+    audio.play()
+      .then(() => {
+        // Audio file is playing — hard cancel TTS in case anything was queued
+        window.speechSynthesis?.cancel();
+      })
+      .catch(() => {
+        // Audio file missing or failed — browser TTS only as fallback
+        audioRef.current = null;
+        if (typeof window === "undefined" || !window.speechSynthesis) return;
+        const utt = new SpeechSynthesisUtterance(text);
+        const v = currentPersonality.voice;
+        utt.pitch = v.pitch;
+        utt.rate = v.rate;
+        utt.volume = volume;
+        const voice = selectVoice(v.preferredVoices);
+        if (voice) utt.voice = voice;
+        window.speechSynthesis.speak(utt);
+      });
   }
+
 
   // ── Computer turn ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -308,6 +371,17 @@ function PlayPage() {
     setComputerThinking(true);
     setAvatarState("thinking");
     evaluate(fen, eloConfig);
+
+    // Recovery: if engine gives no result within 12s, unblock
+    const recovery = setTimeout(() => {
+      if (computerThinkingRef.current) {
+        computerThinkingRef.current = false;
+        setComputerThinking(false);
+        setAvatarState("idle");
+      }
+    }, 12000);
+
+    return () => clearTimeout(recovery);
   }, [isComputerTurn, fen, evaluate, eloConfig]);
 
   useEffect(() => {
@@ -347,14 +421,16 @@ function PlayPage() {
   useEffect(() => {
     if (!gameStarted || isGameOver) return;
     localStorage.setItem("voxchess_game", JSON.stringify({
-      fen,
-      history,        // ← was missing
+      startFen: startingFen,
+      pgn: exportPgn(),
       playerColor,
-      elo: ELO_VALUES[eloIndex],
       eloIndex,
       personalityId,
+      sessionKind,
+      currentGameId,
     }));
-  }, [fen, history, playerColor, eloIndex, personalityId, gameStarted, isGameOver]);
+  }, [fen, playerColor, eloIndex, personalityId, gameStarted, isGameOver, startingFen, sessionKind, currentGameId]);
+
 
   // Game over
   useEffect(() => {
@@ -393,9 +469,49 @@ function PlayPage() {
     }
   }, [history.length]); // eslint-disable-line
 
+  useEffect(() => {
+    if (playMode !== "resume-game" || !urlGameId) return;
+
+    const gameId = urlGameId;
+    let cancelled = false;
+
+    async function loadExistingGame() {
+      try {
+        const g = await getGame(gameId);
+        if (cancelled) return;
+
+        const resolvedStartFen = g.start_fen ?? null;
+        setStartingFen(resolvedStartFen);
+        loadPgn(g.pgn ?? "", resolvedStartFen);
+        setSessionKind("game");
+        setCurrentGameId(g.id);
+
+        const meta = g.metadata as {
+          eloIndex?: number;
+          personalityId?: string;
+          playerColor?: string;
+        } | null;
+        if (meta?.eloIndex !== undefined) setEloIndex(meta.eloIndex);
+        if (meta?.personalityId) setPersonalityId(meta.personalityId as PersonalityId);
+        if (meta?.playerColor) setPlayerColor(meta.playerColor as "w" | "b");
+
+        setGameStarted(true);
+      } catch {
+        toast.error("Could not load game");
+      }
+    }
+
+    loadExistingGame();
+    return () => { cancelled = true; };
+  }, [playMode, urlGameId]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
   function handleNewGame() {
+    setSessionKind("new");
+    setCurrentGameId(null);
+    setStartingFen(null);
     setGameEnded(false);
+
     localStorage.removeItem("voxchess_game");
     reset();
     computerThinkingRef.current = false;
@@ -414,7 +530,44 @@ function PlayPage() {
 
   function startGame() {
     handleNewGame();
+    if (playMode === "continue-position" && startFen) {
+      setStartingFen(startFen);
+      reset(startFen);
+    }
+    setSessionKind("new");
     setGameStarted(true);
+    speakAvatar(pickRandom(currentPersonality.responses.greetings));
+  }
+
+  async function saveCurrentGame(result: string): Promise<void> {
+    const pgn = exportPgn();
+    const playSettings = { eloIndex, personalityId, playerColor };
+
+    if (sessionKind === "game" && currentGameId) {
+      await updateGame(currentGameId, pgn, result, playSettings);
+    } else {
+      const saved = await saveGame(
+        pgn,
+        result,
+        startingFen ?? null,
+        routeSourceType ?? null,
+        sourceGameId ?? null,
+        sourceNodeId ?? null,
+        playSettings,
+      );
+      setSessionKind("game");
+      setCurrentGameId(saved.id);
+
+      localStorage.setItem("voxchess_game", JSON.stringify({
+        startFen: startingFen,
+        pgn,
+        playerColor,
+        eloIndex,
+        personalityId,
+        sessionKind: "game",
+        currentGameId: saved.id,
+      }));
+    }
   }
 
   function handlePromotionPick(piece: "q" | "r" | "b" | "n") {
@@ -430,10 +583,11 @@ function PlayPage() {
     setComputerThinking(false);
     setAvatarState("idle");
     setAvatarText("");
+    speakAvatar(pickRandom(currentPersonality.responses.undo));
   }
 
   function handleSave() {
-    saveGame(exportPgn(), getGameResult(game))
+    saveCurrentGame(getGameResult(game))
       .then(() => toast.success("Game saved"))
       .catch(() => toast.error("Could not save"));
   }
@@ -441,7 +595,7 @@ function PlayPage() {
   async function handleResign() {
     setGameEnded(true);
     const result = computerColor === "w" ? "white" : "black";
-    try { await saveGame(exportPgn(), result); } catch { }
+    try { await saveCurrentGame(result); } catch { }
     const text = pickRandom(currentPersonality.responses.win);
     setGameOverAvatarState("win");
     setGameOverAvatarText(text);
@@ -480,7 +634,7 @@ function PlayPage() {
       speakAvatar(text, "draw", 0);
       setTimeout(async () => {
         setGameEnded(true);
-        try { await saveGame(exportPgn(), "draw"); } catch { }
+        try { await saveCurrentGame("draw"); } catch { }
         setGameOverLabel("Draw agreed");
         setOverOpen(true);
         toast("Draw accepted");
@@ -505,6 +659,14 @@ function PlayPage() {
             <p className="text-sm text-muted-foreground mt-1">Choose your settings and start.</p>
           </div>
 
+          {playMode === "continue-position" && startFen && (
+            <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-[var(--accent-blue)]/10 border border-[var(--accent-blue)]/30">
+              <div className="text-xs leading-relaxed">
+                <div className="font-semibold text-[var(--accent-blue)] mb-0.5">Continuing from a custom position</div>
+                <div className="text-muted-foreground">This game will start from the imported board state. Choose your opponent and difficulty below.</div>
+              </div>
+            </div>
+          )}
           {/* Play as */}
           <Card className="p-5 space-y-3">
             <div className="text-sm font-medium">Play as</div>
@@ -527,7 +689,6 @@ function PlayPage() {
               ))}
             </div>
           </Card>
-
           {/* ELO Slider */}
           <Card className="p-5 space-y-4">
             <div className="flex items-center justify-between">
@@ -644,7 +805,9 @@ function PlayPage() {
           <div className="ml-auto flex gap-2 shrink-0">
             <button
               onClick={() => {
-                // New game, same settings — don't go to setup
+                setSessionKind("new");
+                setCurrentGameId(null);
+                setStartingFen(null);
                 setGameEnded(false);
                 reset();
                 localStorage.removeItem("voxchess_game");
@@ -654,6 +817,9 @@ function PlayPage() {
                 setAvatarState("idle"); setAvatarText("");
                 if (avatarTimeoutRef.current) clearTimeout(avatarTimeoutRef.current);
                 window.speechSynthesis?.cancel();
+                // Remove gameId from URL so the auto-load effect doesn't re-fire
+                navigate({ to: "/play", search: {} });
+                speakAvatar(pickRandom(currentPersonality.responses.greetings));
               }}
               className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background hover:bg-accent transition-colors text-sm"
             >
@@ -676,12 +842,14 @@ function PlayPage() {
                   <MenuItem label="Undo" icon={Undo2}
                     disabled={moveCount < 2 || gameEnded}
                     onClick={() => { handleUndo(); setMenuOpen(false); }} />
+                  <MenuSeparator />
                   <MenuItem label={hintLabel} icon={Lightbulb}
                     disabled={isComputerTurn || gameEnded}
                     onClick={() => { handleHint(); setMenuOpen(false); }} />
-                  <MenuItem label={hintLabel} icon={Lightbulb}
-                    disabled={isComputerTurn || gameEnded}
-                    onClick={() => { handleHint(); setMenuOpen(false); }} />
+                  <MenuSeparator />
+                  <MenuItem label="Offer Draw" icon={Handshake}
+                    disabled={isComputerTurn || moveCount < 20 || gameEnded}
+                    onClick={() => { handleDrawOffer(); setMenuOpen(false); }} />
                   <MenuSeparator />
                   <MenuItem label="Save" icon={Save}
                     onClick={() => { handleSave(); setMenuOpen(false); }} />

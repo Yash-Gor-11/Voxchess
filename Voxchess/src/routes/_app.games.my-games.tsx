@@ -124,45 +124,66 @@ function MyGamesPage() {
 
                 {/* Actions inline on sm+ */}
                 <div className="hidden sm:flex items-center gap-1 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })}
-                  >
-                    <LineChart className="h-3.5 w-3.5 mr-1.5" />
-                    Analyse
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDelete(g.id)}
-                    aria-label="Delete game"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                </div>
+  {(!g.result || g.result === "ongoing") && (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() => navigate({ to: "/play", search: { gameId: g.id } })}
+    >
+      <Swords className="h-3.5 w-3.5 mr-1.5" />
+      Continue
+    </Button>
+  )}
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={() => navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })}
+  >
+    <LineChart className="h-3.5 w-3.5 mr-1.5" />
+    Analyse
+  </Button>
+  <Button
+    size="sm"
+    variant="ghost"
+    onClick={() => handleDelete(g.id)}
+    aria-label="Delete game"
+  >
+    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+  </Button>
+</div>
               </div>
 
               {/* Actions below on mobile */}
               <div className="flex sm:hidden gap-2 mt-3 ml-9">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })}
-                >
-                  <LineChart className="h-3.5 w-3.5 mr-1.5" />
-                  Analyse
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleDelete(g.id)}
-                  aria-label="Delete game"
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </Button>
-              </div>
+  {(!g.result || g.result === "ongoing") && (
+    <Button
+      size="sm"
+      variant="outline"
+      className="flex-1"
+      onClick={() => navigate({ to: "/play", search: { gameId: g.id } })}
+    >
+      <Swords className="h-3.5 w-3.5 mr-1.5" />
+      Continue
+    </Button>
+  )}
+  <Button
+    size="sm"
+    variant="outline"
+    className="flex-1"
+    onClick={() => navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })}
+  >
+    <LineChart className="h-3.5 w-3.5 mr-1.5" />
+    Analyse
+  </Button>
+  <Button
+    size="sm"
+    variant="ghost"
+    onClick={() => handleDelete(g.id)}
+    aria-label="Delete game"
+  >
+    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+  </Button>
+</div>
             </Card>
           );
         })}
