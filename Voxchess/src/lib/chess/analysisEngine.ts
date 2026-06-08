@@ -26,7 +26,8 @@ export interface SerializedNode {
   children: SerializedNode[];
   comment?: string;
 }
-function generateId() {
+
+export function generateId() {
   return Math.random().toString(36).slice(2, 9);
 }
 
@@ -204,6 +205,24 @@ export class AnalysisTree {
     return path;
   }
 
+  findNodeById(id: string): TreeNode | null {
+    const stack: TreeNode[] = [this.root];
+    while (stack.length) {
+      const node = stack.pop()!;
+      if (node.id === id) return node;
+      stack.push(...node.children);
+    }
+    return null;
+  }
+
+  static deserializeToTree(data: SerializedNode): AnalysisTree {
+    const root = AnalysisTree.deserialize(data);
+    const tree = new AnalysisTree(root.fen);
+    tree.root = root;
+    tree.current = root;
+    return tree;
+  }
+
   serialize(): SerializedNode {
     const serializeNode = (node: TreeNode): SerializedNode => ({
       id: node.id,
@@ -232,7 +251,7 @@ export class AnalysisTree {
       highlights: data.highlights ?? [],
       isMainLine: data.isMainLine,
       plyIndex: data.plyIndex,
-      comment: data.comment, 
+      comment: data.comment,
     };
     node.children = (data.children ?? []).map((c) => AnalysisTree.deserialize(c, node));
     return node;

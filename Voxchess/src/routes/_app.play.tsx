@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, useRef } from "react";
 import {
   Bot, User, Plus, ChevronLeft, MoreHorizontal,
-  Undo2, Save, Flag, Lightbulb, Handshake, FlipHorizontal2, Check,
+  Undo2, Save, Flag, Lightbulb, Handshake, FlipHorizontal2, Check, GitBranch,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
 } from "@/lib/chess/personalities";
 import { selectVoice } from "@/lib/voice/selectVoice";
 import { hashText } from "@/lib/voice/hashText";
+import { addToAnalysis } from "@/lib/supabase/annotations";
 
 type PlaySearch = {
   fen?: string;
@@ -37,6 +38,12 @@ type PlaySearch = {
 };
 
 type PlayMode = "resume-game" | "continue-position" | "new-game";
+
+type Provenance = {
+  sourceType: "analysis" | "imported_fen" | null;
+  sourceGameId: string | null;
+  sourceNodeId: string | null;
+};
 
 export const Route = createFileRoute("/_app/play")({
   validateSearch: (search: Record<string, unknown>): PlaySearch => ({
@@ -143,17 +150,38 @@ function PlayPage() {
   const [savedGame] = useState(() => {
     try {
       const raw = localStorage.getItem("voxchess_game");
-      return raw ? JSON.parse(raw) : null;
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed;
     } catch { return null; }
   });
 
+  const hasFreshLaunch =
+    !!routeSourceType ||
+    !!sourceGameId ||
+    !!sourceNodeId;
+
   const [gameStarted, setGameStarted] = useState(
-    playMode === "new-game" && !!savedGame
+    hasFreshLaunch ? false : !!savedGame
   );
   const [playerColor, setPlayerColor] = useState<"w" | "b">(savedGame?.playerColor ?? "w");
   const [eloIndex, setEloIndex] = useState(savedGame?.eloIndex ?? 5);
   const [personalityId, setPersonalityId] = useState<PersonalityId>(savedGame?.personalityId ?? "frost");
   const [startingFen, setStartingFen] = useState<string | null>(savedGame?.startFen ?? null);
+  const [provenance, setProvenance] = useState<Provenance>(() => ({
+    sourceType: (routeSourceType ?? savedGame?.sourceType ?? null) as Provenance["sourceType"],
+    sourceGameId: sourceGameId ?? savedGame?.sourceGameId ?? null,
+    sourceNodeId: sourceNodeId ?? savedGame?.sourceNodeId ?? null,
+  }));
+  useEffect(() => {
+    if (routeSourceType && provenance.sourceType !== routeSourceType) {
+      setProvenance({
+        sourceType: routeSourceType,
+        sourceGameId: sourceGameId ?? null,
+        sourceNodeId: sourceNodeId ?? null,
+      });
+    }
+  }, [routeSourceType, sourceGameId, sourceNodeId, provenance.sourceType]);
+
   // ── Game state ───────────────────────────────────────────────────────────
   const [computerThinking, setComputerThinking] = useState(false);
   const [overOpen, setOverOpen] = useState(false);
@@ -216,14 +244,18 @@ function PlayPage() {
   fenRef.current = fen;
 
   useEffect(() => {
-    if (restoredRef.current || !savedGame || playMode !== "new-game") return;
+    if (restoredRef.current) return;
+    if (hasFreshLaunch) return;
+    if (!savedGame) return;
+
     restoredRef.current = true;
+
     if (savedGame.pgn !== undefined) {
       loadPgn(savedGame.pgn ?? "", savedGame.startFen ?? null);
     } else if (savedGame.history?.length) {
       loadMoves(savedGame.history);
     }
-  }, []);
+  }, [hasFreshLaunch]);
 
   // Keep the chessboard callback stable across unrelated page updates.
   const handlePieceDrop = useCallback(
@@ -428,9 +460,11 @@ function PlayPage() {
       personalityId,
       sessionKind,
       currentGameId,
+      sourceType: provenance.sourceType,
+      sourceGameId: provenance.sourceGameId,
+      sourceNodeId: provenance.sourceNodeId,
     }));
-  }, [fen, playerColor, eloIndex, personalityId, gameStarted, isGameOver, startingFen, sessionKind, currentGameId]);
-
+  }, [fen, playerColor, eloIndex, personalityId, gameStarted, isGameOver, startingFen, sessionKind, currentGameId, provenance]);
 
   // Game over
   useEffect(() => {
@@ -495,6 +529,15 @@ function PlayPage() {
         if (meta?.personalityId) setPersonalityId(meta.personalityId as PersonalityId);
         if (meta?.playerColor) setPlayerColor(meta.playerColor as "w" | "b");
 
+        // Restore provenance from the game record
+        setProvenance({
+          sourceType: (g.source_type === "analysis" || g.source_type === "imported_fen")
+            ? g.source_type
+            : null,
+          sourceGameId: g.source_game_id ?? null,
+          sourceNodeId: g.source_node_id ?? null,
+        });
+
         setGameStarted(true);
       } catch {
         toast.error("Could not load game");
@@ -511,7 +554,7 @@ function PlayPage() {
     setCurrentGameId(null);
     setStartingFen(null);
     setGameEnded(false);
-
+    setProvenance({ sourceType: null, sourceGameId: null, sourceNodeId: null });
     localStorage.removeItem("voxchess_game");
     reset();
     computerThinkingRef.current = false;
@@ -550,9 +593,9 @@ function PlayPage() {
         pgn,
         result,
         startingFen ?? null,
-        routeSourceType ?? null,
-        sourceGameId ?? null,
-        sourceNodeId ?? null,
+        provenance.sourceType ?? null,
+        provenance.sourceGameId ?? null,
+        provenance.sourceNodeId ?? null,
         playSettings,
       );
       setSessionKind("game");
@@ -566,6 +609,9 @@ function PlayPage() {
         personalityId,
         sessionKind: "game",
         currentGameId: saved.id,
+        sourceType: provenance.sourceType,
+        sourceGameId: provenance.sourceGameId,
+        sourceNodeId: provenance.sourceNodeId,
       }));
     }
   }
@@ -590,6 +636,20 @@ function PlayPage() {
     saveCurrentGame(getGameResult(game))
       .then(() => toast.success("Game saved"))
       .catch(() => toast.error("Could not save"));
+  }
+
+  async function handleAddToAnalysis() {
+    if (!provenance.sourceGameId || !provenance.sourceNodeId) return;
+    try {
+      await addToAnalysis(provenance.sourceGameId, provenance.sourceNodeId, history);
+      toast.success("Added variation to analysis");
+    } catch (err) {
+      if (err instanceof Error && err.message === "SOURCE_NODE_NOT_FOUND") {
+        toast.error("Original position not found in analysis tree");
+      } else {
+        toast.error("Could not add to analysis");
+      }
+    }
   }
 
   async function handleResign() {
@@ -805,28 +865,14 @@ function PlayPage() {
           <div className="ml-auto flex gap-2 shrink-0">
             <button
               onClick={() => {
-                setSessionKind("new");
-                setCurrentGameId(null);
-                setStartingFen(null);
-                setGameEnded(false);
-                reset();
-                localStorage.removeItem("voxchess_game");
-                computerThinkingRef.current = false;
-                setComputerThinking(false);
-                setHintStage(0); setHintFrom(null); setHintTo(null);
-                setAvatarState("idle"); setAvatarText("");
-                if (avatarTimeoutRef.current) clearTimeout(avatarTimeoutRef.current);
-                window.speechSynthesis?.cancel();
-                // Remove gameId from URL so the auto-load effect doesn't re-fire
+                handleNewGame();
                 navigate({ to: "/play", search: {} });
-                speakAvatar(pickRandom(currentPersonality.responses.greetings));
               }}
               className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md border border-input bg-background hover:bg-accent transition-colors text-sm"
             >
               <Plus className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">New</span>
             </button>
-
 
             {/* Custom ... menu — plain HTML, no Radix */}
             <div className="relative" ref={menuRef}>
@@ -851,8 +897,18 @@ function PlayPage() {
                     disabled={isComputerTurn || moveCount < 20 || gameEnded}
                     onClick={() => { handleDrawOffer(); setMenuOpen(false); }} />
                   <MenuSeparator />
-                  <MenuItem label="Save" icon={Save}
-                    onClick={() => { handleSave(); setMenuOpen(false); }} />
+                  {provenance.sourceType === "analysis" ? (
+                    <>
+                      <MenuItem label="Add To Analysis" icon={GitBranch}
+                        onClick={() => { handleAddToAnalysis(); setMenuOpen(false); }} />
+                      <MenuItem label="Save As Game" icon={Save}
+                        onClick={() => { handleSave(); setMenuOpen(false); }} />
+                    </>
+                  ) : (
+                    <MenuItem label="Save" icon={Save}
+                      onClick={() => { handleSave(); setMenuOpen(false); }} />
+                  )}
+
                   <MenuItem label="Resign" icon={Flag}
                     disabled={moveCount < 4 || gameEnded} destructive
                     onClick={() => { handleResign(); setMenuOpen(false); }} />

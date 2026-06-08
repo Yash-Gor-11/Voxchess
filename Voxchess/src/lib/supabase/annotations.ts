@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { SerializedNode } from "@/lib/chess/analysisEngine";
+import { mergeContinuation } from "@/lib/chess/analysisMerge";
+import { AnalysisTree } from "@/lib/chess/analysisEngine";
 
 export async function saveAnnotations(gameId: string, tree: object) {
   const {
@@ -24,6 +26,25 @@ export async function saveAnnotations(gameId: string, tree: object) {
   );
 
   if (error) throw error;
+}
+
+export async function addToAnalysis(
+  sourceGameId: string,
+  sourceNodeId: string,
+  moves: string[],
+): Promise<void> {
+  if (moves.length === 0) return;
+
+  const saved = await getAnnotations(sourceGameId);
+  if (!saved?.tree) throw new Error("No analysis found for this game");
+
+  const tree = AnalysisTree.deserializeToTree(saved.tree);
+
+  const sourceNode = tree.findNodeById(sourceNodeId);
+  if (!sourceNode) throw new Error("SOURCE_NODE_NOT_FOUND");
+
+  mergeContinuation(sourceNode, moves);
+  await saveAnnotations(sourceGameId, tree.serialize());
 }
 
 export async function getAnnotations(gameId: string) {

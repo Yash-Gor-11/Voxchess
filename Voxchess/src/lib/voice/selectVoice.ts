@@ -30,10 +30,6 @@ function getVoices(): SpeechSynthesisVoice[] {
 if (typeof window !== "undefined" && window.speechSynthesis) {
   window.speechSynthesis.addEventListener("voiceschanged", () => {
     cachedVoices = window.speechSynthesis.getVoices();
-    console.log(
-      "[selectVoice] voices loaded:",
-      cachedVoices.map((v) => `${v.name} (${v.lang})`).join(", "),
-    );
   });
 }
 
@@ -50,7 +46,6 @@ export function selectVoice(preferredVoices: string[]): SpeechSynthesisVoice | n
       v.name.toLowerCase().includes(pref.toLowerCase()),
     );
     if (match) {
-      console.log(`[selectVoice] matched "${pref}" → ${match.name} (${match.lang})`);
       return match;
     }
   }
@@ -63,7 +58,6 @@ export function selectVoice(preferredVoices: string[]): SpeechSynthesisVoice | n
       KNOWN_FEMALE.some((f) => v.name.toLowerCase().includes(f)),
     );
     if (femaleVoice) {
-      console.log(`[selectVoice] gender fallback (female) → ${femaleVoice.name} (${femaleVoice.lang})`);
       return femaleVoice;
     }
   } else if (gender === "male") {
@@ -71,17 +65,11 @@ export function selectVoice(preferredVoices: string[]): SpeechSynthesisVoice | n
       KNOWN_MALE.some((m) => v.name.toLowerCase().includes(m)),
     );
     if (maleVoice) {
-      console.log(`[selectVoice] gender fallback (male) → ${maleVoice.name} (${maleVoice.lang})`);
       return maleVoice;
     }
   }
 
   // Step 3 — last resort: first available English voice
   const fallback = englishVoices[0] ?? voices[0] ?? null;
-  console.log(
-    fallback
-      ? `[selectVoice] last resort fallback → ${fallback.name} (${fallback.lang})`
-      : `[selectVoice] no voices available`,
-  );
   return fallback;
 }

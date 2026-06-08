@@ -206,10 +206,7 @@ function AnalysisPage() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  useEffect(() => {
-  console.log("[ANALYSIS] mounted");
-  return () => console.log("[ANALYSIS] unmounted");
-}, []);
+  
   // ── Drag-to-resize ─────────────────────────────────────────────────────────
   const dragStartRef = useRef<{ x: number; y: number; size: number } | null>(null);
 
@@ -529,21 +526,31 @@ function AnalysisPage() {
                 />
                 <MenuSeparator />
                 <MenuItem
-  label="Continue vs Bot"
-  icon={Swords}
-  onClick={() => {
-    navigate({
-  to: "/play",
-  search: {
-    fen: currentNode.fen,
-    sourceGameId: gameId,
-    sourceNodeId: currentNode.id,
-    sourceType: "analysis",
-  },
-});
-    setMenuOpen(false);
-  }}
-/>
+                  label="Continue vs Bot"
+                  icon={Swords}
+                  onClick={async () => {
+                    // Save the current tree so sourceNodeId is guaranteed
+                    // to exist when Add To Analysis is called later
+                    if (treeRef.current) {
+                      try {
+                        await saveAnnotations(gameId, treeRef.current.serialize());
+                      } catch {
+                        toast.error("Could not save analysis before continuing");
+                        return;
+                      }
+                    }
+                    navigate({
+                      to: "/play",
+                      search: {
+                        fen: currentNode.fen,
+                        sourceGameId: gameId,
+                        sourceNodeId: currentNode.id,
+                        sourceType: "analysis",
+                      },
+                    });
+                    setMenuOpen(false);
+                  }}
+                />
                 <MenuSeparator />
                 <MenuItem
                   label="Show Engine"
