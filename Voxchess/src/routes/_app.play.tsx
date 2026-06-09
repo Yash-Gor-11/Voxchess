@@ -28,6 +28,7 @@ import {
 import { selectVoice } from "@/lib/voice/selectVoice";
 import { hashText } from "@/lib/voice/hashText";
 import { addToAnalysis } from "@/lib/supabase/annotations";
+import { getPlayStorageKey } from "@/lib/authStorage";
 
 type PlaySearch = {
   fen?: string;
@@ -148,10 +149,13 @@ function PlayPage() {
   }
   // ── Setup state ──────────────────────────────────────────────────────────
   const [savedGame] = useState(() => {
+    const key = getPlayStorageKey();
+
+    if (!key) return null;
     try {
-      const raw = localStorage.getItem("voxchess_game");
-      const parsed = raw ? JSON.parse(raw) : null;
-      return parsed;
+      const raw = localStorage.getItem(key);
+
+      return raw ? JSON.parse(raw) : null;
     } catch { return null; }
   });
 
@@ -232,10 +236,16 @@ function PlayPage() {
     const initialFen = startingFen ?? new Chess().fen();
     const chess = new Chess(initialFen);
     const fens: string[] = [initialFen];
+
     for (const san of history) {
-      chess.move(san);
-      fens.push(chess.fen());
+      try {
+        chess.move(san);
+        fens.push(chess.fen());
+      } catch {
+        break;
+      }
     }
+
     setFenHistory(fens);
     setViewIndex(fens.length - 1);
   }, [history.length, startingFen]);
@@ -244,12 +254,39 @@ function PlayPage() {
   fenRef.current = fen;
 
   useEffect(() => {
+
+
     if (restoredRef.current) return;
-    if (hasFreshLaunch) return;
+
+    if (hasFreshLaunch) {
+      restoredRef.current = true;
+      return;
+    }
+
     if (!savedGame) return;
+
+
 
     restoredRef.current = true;
 
+    // Restore session metadata
+    setStartingFen(savedGame.startFen ?? null);
+
+    setSessionKind(
+      savedGame.sessionKind === "game" ? "game" : "new",
+    );
+
+    setCurrentGameId(savedGame.currentGameId ?? null);
+
+    setProvenance({
+      sourceType: savedGame.sourceType ?? null,
+      sourceGameId: savedGame.sourceGameId ?? null,
+      sourceNodeId: savedGame.sourceNodeId ?? null,
+    });
+
+    setGameStarted(true);
+
+    // Restore board
     if (savedGame.pgn !== undefined) {
       loadPgn(savedGame.pgn ?? "", savedGame.startFen ?? null);
     } else if (savedGame.history?.length) {
@@ -395,6 +432,25 @@ function PlayPage() {
       });
   }
 
+  function resetRuntimeState() {
+    setGameEnded(false);
+    setOverOpen(false);
+    setHintStage(0);
+    setHintFrom(null);
+    setHintTo(null);
+    setGameOverLabel("");
+    setAvatarState("idle");
+    setAvatarText("");
+    computerThinkingRef.current = false;
+    setComputerThinking(false);
+
+    if (avatarTimeoutRef.current) {
+      clearTimeout(avatarTimeoutRef.current);
+    }
+
+    window.speechSynthesis?.cancel();
+  }
+
 
   // ── Computer turn ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -452,7 +508,9 @@ function PlayPage() {
 
   useEffect(() => {
     if (!gameStarted || isGameOver) return;
-    localStorage.setItem("voxchess_game", JSON.stringify({
+    const key = getPlayStorageKey();
+    if (!key) return;
+    localStorage.setItem(key, JSON.stringify({
       startFen: startingFen,
       pgn: exportPgn(),
       playerColor,
@@ -550,36 +608,54 @@ function PlayPage() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   function handleNewGame() {
+    resetRuntimeState();
+
     setSessionKind("new");
     setCurrentGameId(null);
     setStartingFen(null);
-    setGameEnded(false);
-    setProvenance({ sourceType: null, sourceGameId: null, sourceNodeId: null });
-    localStorage.removeItem("voxchess_game");
+    setProvenance({
+      sourceType: null,
+      sourceGameId: null,
+      sourceNodeId: null,
+    });
+
+    const key = getPlayStorageKey();
+    if (key) localStorage.removeItem(key);
+
     reset();
-    computerThinkingRef.current = false;
-    setComputerThinking(false);
-    setOverOpen(false);
-    setHintStage(0);
-    setHintFrom(null);
-    setHintTo(null);
-    setGameOverLabel("");
-    setAvatarState("idle");
-    setAvatarText("");
-    if (avatarTimeoutRef.current) clearTimeout(avatarTimeoutRef.current);
-    window.speechSynthesis?.cancel();
     setGameStarted(false);
   }
 
   function startGame() {
-    handleNewGame();
+
+    resetRuntimeState();
+
+    setSessionKind("new");
+    setCurrentGameId(null);
+
     if (playMode === "continue-position" && startFen) {
+
       setStartingFen(startFen);
       reset(startFen);
+
+    } else {
+      setStartingFen(null);
+      reset();
     }
-    setSessionKind("new");
+
+    // keep provenance intact
+
     setGameStarted(true);
-    speakAvatar(pickRandom(currentPersonality.responses.greetings));
+
+    navigate({
+      to: "/play",
+      search: {},
+      replace: true,
+    });
+
+    speakAvatar(
+      pickRandom(currentPersonality.responses.greetings),
+    );
   }
 
   async function saveCurrentGame(result: string): Promise<void> {
@@ -601,18 +677,21 @@ function PlayPage() {
       setSessionKind("game");
       setCurrentGameId(saved.id);
 
-      localStorage.setItem("voxchess_game", JSON.stringify({
-        startFen: startingFen,
-        pgn,
-        playerColor,
-        eloIndex,
-        personalityId,
-        sessionKind: "game",
-        currentGameId: saved.id,
-        sourceType: provenance.sourceType,
-        sourceGameId: provenance.sourceGameId,
-        sourceNodeId: provenance.sourceNodeId,
-      }));
+      const key = getPlayStorageKey();
+      if (key) {
+        localStorage.setItem(key, JSON.stringify({
+          startFen: startingFen,
+          pgn,
+          playerColor,
+          eloIndex,
+          personalityId,
+          sessionKind: "game",
+          currentGameId: saved.id,
+          sourceType: provenance.sourceType,
+          sourceGameId: provenance.sourceGameId,
+          sourceNodeId: provenance.sourceNodeId,
+        }));
+      }
     }
   }
 
