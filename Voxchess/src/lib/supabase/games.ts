@@ -377,3 +377,25 @@ export async function saveStudyChapter(
   if (error) throw error;
   return data as Game;
 }
+
+/**
+ * Update only the PGN and result of an existing game.
+ * Used by the review pipeline to persist annotated PGN without
+ * touching play settings (eloIndex, personalityId, playerColor).
+ */
+export async function updateGamePgn(
+  id: string,
+  pgn: string,
+  result: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("games")
+    .update({
+      pgn,
+      result,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+}

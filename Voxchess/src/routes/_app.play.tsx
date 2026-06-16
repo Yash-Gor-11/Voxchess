@@ -29,6 +29,7 @@ import { selectVoice } from "@/lib/voice/selectVoice";
 import { hashText } from "@/lib/voice/hashText";
 import { addToAnalysis } from "@/lib/supabase/annotations";
 import { getPlayStorageKey } from "@/lib/authStorage";
+import { MenuItem, MenuSeparator } from "@/components/chess/MenuItems";
 
 type PlaySearch = {
   fen?: string;
@@ -90,42 +91,6 @@ function calcPlayBoardSize(): number {
   const availW = vw - sidebarW - rightPanelW - padding;
   const availH = vh - 64 - 48 - 80 - padding;
   return Math.min(Math.max(Math.min(availH, availW), 180), 580);
-}
-
-// Custom lightweight action menu.
-interface MenuItemProps {
-  label: string;
-  icon: React.ElementType;
-  onClick: () => void;
-  disabled?: boolean;
-  destructive?: boolean;
-  checked?: boolean;
-  isCheckbox?: boolean;
-}
-
-function MenuItem({ label, icon: Icon, onClick, disabled, destructive, checked, isCheckbox }: MenuItemProps) {
-  return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors
-        hover:bg-accent disabled:opacity-40 disabled:pointer-events-none
-        ${destructive ? "text-destructive hover:text-destructive" : ""}`}
-    >
-      {isCheckbox ? (
-        <span className="h-4 w-4 flex items-center justify-center">
-          {checked && <Check className="h-3 w-3" />}
-        </span>
-      ) : (
-        <Icon className="h-4 w-4 shrink-0" />
-      )}
-      {label}
-    </button>
-  );
-}
-
-function MenuSeparator() {
-  return <div className="my-1 border-t border-border" />;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────

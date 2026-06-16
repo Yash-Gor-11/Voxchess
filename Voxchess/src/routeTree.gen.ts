@@ -21,6 +21,7 @@ import { Route as AppPlayRouteImport } from './routes/_app.play'
 import { Route as AppImportRouteImport } from './routes/_app.import'
 import { Route as AppGamesRouteImport } from './routes/_app.games'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppReviewGameIdRouteImport } from './routes/_app.review.$gameId'
 import { Route as AppPlayPvpRouteImport } from './routes/_app.play.pvp'
 import { Route as AppGamesStudiesRouteImport } from './routes/_app.games.studies'
 import { Route as AppGamesMyGamesRouteImport } from './routes/_app.games.my-games'
@@ -87,6 +88,11 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppReviewGameIdRoute = AppReviewGameIdRouteImport.update({
+  id: '/review/$gameId',
+  path: '/review/$gameId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPlayPvpRoute = AppPlayPvpRouteImport.update({
   id: '/pvp',
   path: '/pvp',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/games/my-games': typeof AppGamesMyGamesRoute
   '/games/studies': typeof AppGamesStudiesRouteWithChildren
   '/play/pvp': typeof AppPlayPvpRoute
+  '/review/$gameId': typeof AppReviewGameIdRoute
   '/games/studies/$studyId': typeof AppGamesStudiesStudyIdRoute
 }
 export interface FileRoutesByTo {
@@ -154,6 +161,7 @@ export interface FileRoutesByTo {
   '/games/my-games': typeof AppGamesMyGamesRoute
   '/games/studies': typeof AppGamesStudiesRouteWithChildren
   '/play/pvp': typeof AppPlayPvpRoute
+  '/review/$gameId': typeof AppReviewGameIdRoute
   '/games/studies/$studyId': typeof AppGamesStudiesStudyIdRoute
 }
 export interface FileRoutesById {
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/_app/games/my-games': typeof AppGamesMyGamesRoute
   '/_app/games/studies': typeof AppGamesStudiesRouteWithChildren
   '/_app/play/pvp': typeof AppPlayPvpRoute
+  '/_app/review/$gameId': typeof AppReviewGameIdRoute
   '/_app/games/studies/$studyId': typeof AppGamesStudiesStudyIdRoute
 }
 export interface FileRouteTypes {
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/games/my-games'
     | '/games/studies'
     | '/play/pvp'
+    | '/review/$gameId'
     | '/games/studies/$studyId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -215,6 +225,7 @@ export interface FileRouteTypes {
     | '/games/my-games'
     | '/games/studies'
     | '/play/pvp'
+    | '/review/$gameId'
     | '/games/studies/$studyId'
   id:
     | '__root__'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
     | '/_app/games/my-games'
     | '/_app/games/studies'
     | '/_app/play/pvp'
+    | '/_app/review/$gameId'
     | '/_app/games/studies/$studyId'
   fileRoutesById: FileRoutesById
 }
@@ -333,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/review/$gameId': {
+      id: '/_app/review/$gameId'
+      path: '/review/$gameId'
+      fullPath: '/review/$gameId'
+      preLoaderRoute: typeof AppReviewGameIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/play/pvp': {
       id: '/_app/play/pvp'
       path: '/pvp'
@@ -425,6 +444,7 @@ interface AppRouteChildren {
   AppProfileRoute: typeof AppProfileRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppAnalysisGameIdRoute: typeof AppAnalysisGameIdRoute
+  AppReviewGameIdRoute: typeof AppReviewGameIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -435,6 +455,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProfileRoute: AppProfileRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppAnalysisGameIdRoute: AppAnalysisGameIdRoute,
+  AppReviewGameIdRoute: AppReviewGameIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

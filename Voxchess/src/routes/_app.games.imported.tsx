@@ -1,6 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Trash2, LineChart, FolderOpen, ArrowLeft, MapPin } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Trash2, LineChart, FolderOpen, ArrowLeft,
+  MapPin, ClipboardList, MoreHorizontal,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,13 +11,16 @@ import { toast } from "sonner";
 import { getImportedGames, deleteGame } from "@/lib/supabase/games";
 import type { Game } from "@/lib/supabase/games";
 import { countMovesFromPgn } from "@/lib/utils";
+import { MenuItem, MenuSeparator } from "@/components/chess/MenuItems";
 
 export const Route = createFileRoute("/_app/games/imported")({
   head: () => ({ meta: [{ title: "Imported Games — VoxChess" }] }),
   component: ImportedGamesPage,
 });
 
-function resultVariant(result: string | null): "default" | "destructive" | "secondary" {
+function resultVariant(
+  result: string | null,
+): "default" | "destructive" | "secondary" {
   if (result === "white") return "default";
   if (result === "black") return "destructive";
   return "secondary";
@@ -24,6 +30,8 @@ function ImportedGamesPage() {
   const navigate = useNavigate();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -39,17 +47,28 @@ function ImportedGamesPage() {
     load();
   }, []);
 
+  // Close menu on outside click
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    }
+    if (openMenuId) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [openMenuId]);
+
   async function handleDelete(id: string) {
     try {
       await deleteGame(id);
       setGames((prev) => prev.filter((g) => g.id !== id));
+      setOpenMenuId(null);
       toast.success("Deleted");
     } catch {
       toast.error("Could not delete");
     }
   }
 
-  // Separate FEN positions from PGN imports for rendering
   const isPosition = (g: Game) => !!g.fen && !g.pgn;
 
   return (
@@ -83,8 +102,14 @@ function ImportedGamesPage() {
       {!loading && games.length === 0 && (
         <Card className="p-10 text-center">
           <FolderOpen className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">No imported games yet.</p>
-          <Button size="sm" className="mt-4" onClick={() => navigate({ to: "/import" })}>
+          <p className="text-sm text-muted-foreground">
+            No imported games yet.
+          </p>
+          <Button
+            size="sm"
+            className="mt-4"
+            onClick={() => navigate({ to: "/import" })}
+          >
             Import a game
           </Button>
         </Card>
@@ -99,13 +124,21 @@ function ImportedGamesPage() {
             : `${g.metadata?.White ?? "White"} vs ${g.metadata?.Black ?? "Black"}`;
           const subtitle = pos
             ? (g.metadata?.note ?? g.fen ?? "")
-            : `${countMovesFromPgn(g.pgn)} moves · ${g.metadata?.Event ?? ""} · ${g.metadata?.Date ?? ""
-              }`.replace(/^ · | · $/g, "").replace(/ ·  · /g, " · ");
+            : [
+              `${countMovesFromPgn(g.pgn)} moves`,
+              g.metadata?.Event,
+              g.metadata?.Date,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+
+          const isMenuOpen = openMenuId === g.id;
 
           return (
             <Card key={g.id} className="flex items-center gap-4 px-5 py-4">
-              {/* Serial number */}
-              <div className="flex-shrink-0 w-7 text-xs font-mono text-muted-foreground text-right">
+              {/* Index */}
+              <div className="flex-shrink-0 w-7 text-xs font-mono
+                              text-muted-foreground text-right">
                 {i + 1}
               </div>
 
@@ -128,9 +161,12 @@ function ImportedGamesPage() {
                 )}
               </div>
 
-              {/* Result badge — only for PGN games */}
+              {/* Result badge — PGN games only */}
               {!pos && g.result && g.result !== "ongoing" && (
-                <Badge variant={resultVariant(g.result)} className="flex-shrink-0">
+                <Badge
+                  variant={resultVariant(g.result)}
+                  className="flex-shrink-0"
+                >
                   {g.result === "white"
                     ? "1–0"
                     : g.result === "black"
@@ -141,24 +177,77 @@ function ImportedGamesPage() {
 
               {/* Actions */}
               <div className="flex items-center gap-1 flex-shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    navigate({ to: "/analysis/$gameId", params: { gameId: g.id } })
-                  }
-                >
-                  <LineChart className="h-3.5 w-3.5 mr-1.5" />
-                  {pos ? "Analyse" : "Analyse"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleDelete(g.id)}
-                  aria-label="Delete"
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </Button>
+                {/* Primary: Review for PGN, Analyse for FEN */}
+                {pos ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      navigate({ to: "/analysis/$gameId", params: { gameId: g.id } });
+                    }}
+                  >
+                    <LineChart className="h-3.5 w-3.5 mr-1.5" />
+                    Analyse
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      navigate({ to: "/review/$gameId", params: { gameId: g.id } });
+                    }}
+                  >
+                    <ClipboardList className="h-3.5 w-3.5 mr-1.5" />
+                    Review
+                  </Button>
+                )}
+
+                {/* ... overflow menu */}
+                <div className="relative" ref={isMenuOpen ? menuRef : null}>
+                  <button
+                    onClick={() =>
+                      setOpenMenuId(isMenuOpen ? null : g.id)
+                    }
+                    className="inline-flex items-center justify-center
+                               h-8 w-8 rounded-md border border-input
+                               bg-background hover:bg-accent transition-colors"
+                    aria-label="More options"
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </button>
+
+                  {isMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-44
+                                    bg-card border border-border rounded-md
+                                    shadow-lg py-1 z-50">
+                      {/* Analyse goes in menu for PGN games */}
+                      {!pos && (
+                        <>
+                          <MenuItem
+                            label="Analyse"
+                            icon={LineChart}
+                            onClick={() => {
+                              navigate({
+                                to: "/analysis/$gameId",
+                                params: { gameId: g.id },
+                              });
+                              setOpenMenuId(null);
+                            }}
+                          />
+                          <MenuSeparator />
+                        </>
+                      )}
+                      <MenuItem
+                        label="Delete"
+                        icon={Trash2}
+                        destructive
+                        onClick={() => handleDelete(g.id)}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </Card>
           );

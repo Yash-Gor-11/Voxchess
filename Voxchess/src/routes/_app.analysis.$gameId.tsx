@@ -34,6 +34,7 @@ import { isSpeechSupported, startRecognition } from "@/lib/voice/speechRecogniti
 import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 import { PromotionPickerModal } from "@/components/chess/PromotionPickerModal";
 import { parseSinglePgn } from "@/lib/chess/pgnImport";
+import { MenuItem, MenuSeparator } from "@/components/chess/MenuItems";
 
 export const Route = createFileRoute("/_app/analysis/$gameId")({
   head: () => ({ meta: [{ title: "Analysis — VoxChess" }] }),
@@ -107,39 +108,6 @@ function calcInitialBoardSize(): number {
   const availW = vw - sidebarW - rightPanelW - evalBarW - padding;
   const availH = vh - 64 - 40 - 52 - 52 - padding;
   return Math.min(Math.max(Math.min(availH, availW), 180), 600);
-}
-
-// ── Menu helpers (same pattern as play.tsx) ────────────────────────────────
-interface MenuItemProps {
-  label: string;
-  icon: React.ElementType;
-  onClick: () => void;
-  disabled?: boolean;
-  checked?: boolean;
-  isCheckbox?: boolean;
-}
-
-function MenuItem({ label, icon: Icon, onClick, disabled, checked, isCheckbox }: MenuItemProps) {
-  return (
-    <button
-      disabled={disabled}
-      onClick={onClick}
-      className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-accent disabled:opacity-40 disabled:pointer-events-none"
-    >
-      {isCheckbox ? (
-        <span className="h-4 w-4 flex items-center justify-center">
-          {checked && <Check className="h-3 w-3" />}
-        </span>
-      ) : (
-        <Icon className="h-4 w-4 shrink-0" />
-      )}
-      {label}
-    </button>
-  );
-}
-
-function MenuSeparator() {
-  return <div className="my-1 border-t border-border" />;
 }
 
 // ── AnalysisPage ────────────────────────────────────────────────────────────
