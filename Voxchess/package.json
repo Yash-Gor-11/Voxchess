@@ -10,9 +10,9 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "export:voices": "tsx scripts/export-lines.ts",
+    "export:voices": "npx tsx scripts/export-lines.ts",
     "generate:voices": "python scripts/generate-voices.py",
-    "voices": "tsx scripts/export-lines.ts && python scripts/generate-voices.py",
+    "voices": "npx tsx scripts/export-lines.ts && python scripts/generate-voices.py",
     "generate:openings": "bun scripts/generate-openings.ts"
   },
   "dependencies": {
