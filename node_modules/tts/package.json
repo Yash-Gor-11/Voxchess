@@ -1,0 +1,14 @@
+{
+    "name": "tts",
+    "description": "TTS (Text To Speech) using 'say' for OS X (Darwin). More supported platforms in the future",
+    "version": "0.1.0",
+    "author": "Patric Nordmark",
+    "repository": {
+        "type": "git",
+        "url": "http://github.com/I-ARE-RIO/node-tts.git" 
+    },
+    "engine": [
+        "node >=0.1.90" 
+    ],
+    "main": "tts" 
+}

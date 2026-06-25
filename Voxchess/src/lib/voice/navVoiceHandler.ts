@@ -7,7 +7,7 @@ export interface NavCommand {
 
 const ROUTES: Array<[RegExp, string]> = [
   [/dashboard/, "/dashboard"],
-  [/(saved|history)/, "/saved-games"],
+  [/(saved|history)/, "/games"],
   [/play|game/, "/play"],
   [/setting/, "/settings"],
   [/profile/, "/profile"],

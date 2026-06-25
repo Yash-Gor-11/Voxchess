@@ -5,7 +5,7 @@ import { Trophy, Swords, Minus, Equal, BookMarked, TrendingUp, Upload } from "lu
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getGames } from "@/lib/supabase/games";
+import { getPlatformGames } from "@/lib/supabase/games";
 import { countMovesFromPgn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -16,13 +16,13 @@ export const Route = createFileRoute("/_app/dashboard")({
 
 function DashboardPage() {
   const navigate = useNavigate();
-  const [games, setGames] = useState<Awaited<ReturnType<typeof getGames>>>([]);
+  const [games, setGames] = useState<Awaited<ReturnType<typeof getPlatformGames>>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const data = await getGames();
+        const data = await getPlatformGames();
         setGames(data);
       } catch {
         toast.error("Could not load games");

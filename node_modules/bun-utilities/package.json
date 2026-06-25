@@ -1,0 +1,56 @@
+{
+  "name": "bun-utilities",
+  "version": "0.2.1",
+  "description": "Bindings for useful functions for bun ",
+  "types": "./types.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "require": "./index.js"
+    },
+    "./fs": {
+      "import": "./fs.mjs",
+      "require": "./fs.js"
+    },
+    "./os": {
+      "import": "./os.mjs",
+      "require": "./os.js"
+    },
+    "./spawn": {
+      "import": "./spawn.mjs",
+      "require": "./spawn.js"
+    },
+    "./fs.*": {
+      "import": "./fs.*",
+      "require": "./fs.*"
+    },
+    "./os.*": {
+      "import": "./os.*",
+      "require": "./os.*"
+    },
+    "./spawn.*": {
+      "import": "./spawn.*",
+      "require": "./spawn.*"
+    },
+    "./*": {
+      "import": "./*",
+      "require": "./*"
+    }
+  },
+  "author": "xHyroM",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xHyroM/bun-utilities.git"
+  },
+  "bugs": {
+    "url": "https://github.com/xHyroM/bun-utilities/issues"
+  },
+  "keywords": [
+    "bun",
+    "utilities",
+    "rust",
+    "bindings",
+    "napi"
+  ]
+}
