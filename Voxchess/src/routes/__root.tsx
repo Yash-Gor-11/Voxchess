@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { useNavVoice } from "@/hooks/useNavVoice";
+import { MatrixRain } from "@/components/layout/MatrixRain";
 
 function NotFoundComponent() {
   return (
@@ -131,6 +132,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <GlobalKeys />
+        <MatrixRain />
         <Outlet />
         <Toaster richColors position="top-right" />
       </ThemeProvider>
