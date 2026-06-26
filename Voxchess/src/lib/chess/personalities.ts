@@ -31,6 +31,7 @@ export interface Personality {
     reviewBrilliant: string[];
     reviewGreat: string[];
     reviewBest: string[];
+    reviewExcellent: string[];
     reviewGood: string[];
     reviewInaccuracy: string[];
     reviewMistake: string[];
@@ -273,6 +274,14 @@ export const PERSONALITIES: Personality[] = [
         "That was the best available continuation.",
         "On target. Proceed.",
         "Executed correctly.",
+      ],
+      reviewExcellent: [
+        "Excellent execution. The operation remains firmly under control.",
+        "A highly disciplined move. Well carried out.",
+        "Very strong. The objective remains secure.",
+        "An excellent continuation. The plan stays intact.",
+        "That was executed with precision. Carry on.",
+        "A commendable decision. Tactical integrity maintained.",
       ],
       reviewGood: [
         "Acceptable. Not the engine's top choice, but within tolerance.",
@@ -546,6 +555,16 @@ export const PERSONALITIES: Personality[] = [
         "The calculation supports that move.",
         "Statistically optimal.",
       ],
+      reviewExcellent: [
+        "Excellent. A statistically superior decision.",
+        "A highly efficient continuation. I approve.",
+        "Very nearly optimal. Sensibly chosen.",
+        "Your calculation was unusually competent.",
+        "An excellent move. The data strongly supports it.",
+        "A refined decision. You continue to exceed my conservative estimates.",
+        "That maintains your advantage with admirable precision.",
+        "An excellent continuation. Mathematics rarely rewards hesitation, and neither did this.",
+      ],
       reviewGood: [
         "An acceptable deviation from optimal. Within tolerable bounds.",
         "Not the best, but the data does not condemn it.",
@@ -818,6 +837,16 @@ export const PERSONALITIES: Personality[] = [
         "Correct.",
         "That is exactly right.",
         "Nice. Top choice.",
+      ],
+      reviewExcellent: [
+        "Okay, now THAT was nice.",
+        "Yeah, I like that move.",
+        "Solid. Really solid.",
+        "Nice one. You're actually cooking now.",
+        "That was a strong choice.",
+        "Clean move. Keep doing that.",
+        "Very nice. Hard to complain about that one.",
+        "Alright, that was genuinely impressive.",
       ],
       reviewGood: [
         "Not the best but not bad. Close enough.",
@@ -1093,6 +1122,16 @@ export const PERSONALITIES: Personality[] = [
         "Precise.",
         "That was the move.",
       ],
+      reviewExcellent: [
+        "Exquisite. Your skill begins to reveal itself.",
+        "A graceful continuation. Most commendable.",
+        "You choose well. I expected no less... perhaps slightly less.",
+        "A refined move. The board rewards such elegance.",
+        "Excellent. You honor the game with that decision.",
+        "Your judgment serves you well here.",
+        "An admirable continuation. Continue to earn my respect.",
+        "A move worthy of acknowledgment. Treasure the moment.",
+      ],
       reviewGood: [
         "A good move. Not perfect, but worthy.",
         "Acceptable. A stronger option existed, but this holds.",
@@ -1366,6 +1405,16 @@ export const PERSONALITIES: Personality[] = [
         "You got it right!!",
         "The perfect move!! Yay!!",
         "That is exactly right!!",
+      ],
+      reviewExcellent: [
+        "OH WOW!! That was REALLY good!!",
+        "YES!! I loved that move!!",
+        "That was AWESOME!! You are doing so well!!",
+        "Ooh!! That made me happy!!",
+        "Excellent!! I knew you had it in you!!",
+        "That was super duper good!!",
+        "YAY!! That move was amazing!!",
+        "Woohoo!! Keep playing like THAT!!",
       ],
       reviewGood: [
         "That is a good move!! Not the very best but still good!!",

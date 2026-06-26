@@ -54,6 +54,7 @@ function getResponseBank(
     case "brilliant":  return personality.responses.reviewBrilliant;
     case "great":      return personality.responses.reviewGreat;
     case "best":       return personality.responses.reviewBest;
+    case "excellent":   return personality.responses.reviewExcellent;
     case "good":       return personality.responses.reviewGood;
     case "inaccuracy": return personality.responses.reviewInaccuracy;
     case "mistake":    return personality.responses.reviewMistake;

@@ -26,14 +26,15 @@ interface ReviewOverviewProps {
 
 // ─── Constants (module-level, never recomputed) ───────────────────────────────
 
-// Book excluded — rendered separately as a summary line
+// "book" is included here and renders through the SAME generic row as every
+// other classification, using counts.book (already split per-side in
+// computeSideStats) — there is no longer a separate combined book summary.
 const ORDERED_CLASSIFICATIONS: MoveClassification[] = (
   Object.entries(CLASSIFICATION_META) as [
     MoveClassification,
     typeof CLASSIFICATION_META[MoveClassification],
   ][]
 )
-  .filter(([cls]) => cls !== "book")
   .sort((a, b) => a[1].order - b[1].order)
   .map(([cls]) => cls);
 
@@ -158,11 +159,6 @@ export function ReviewOverview({
   const playerLabel   = playerColor === "white" ? "White" : "Black";
   const opponentLabel = playerColor === "white" ? "Black" : "White";
 
-  // Simple count — no useMemo needed, O(n) over ≤200 plies on an immutable array
-  const totalBookMoves = review.moves.filter(
-    (m) => m.classification === "book",
-  ).length;
-
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-4 max-w-lg mx-auto space-y-4">
@@ -215,7 +211,9 @@ export function ReviewOverview({
           </div>
         </Card>
 
-        {/* Move classification counts */}
+        {/* Move classification counts — book included, per-side, same row
+            format as every other classification (counts.book is already
+            split per-side in computeSideStats). */}
         <Card className="p-4">
           <div className="text-xs font-medium uppercase tracking-wider
                           text-muted-foreground mb-3">
@@ -263,18 +261,6 @@ export function ReviewOverview({
                   </tr>
                 );
               })}
-
-              {/* Book summary — single shared row, not per-side */}
-              {totalBookMoves > 0 && (
-                <tr className="border-t border-border/20">
-                  <td colSpan={3} className="pt-2 pb-0.5">
-                    <span className="text-[10px] text-muted-foreground">
-                      {totalBookMoves} book move
-                      {totalBookMoves !== 1 ? "s" : ""}
-                    </span>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </Card>

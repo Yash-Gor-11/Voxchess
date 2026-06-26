@@ -1,7 +1,8 @@
 // src/components/review/EvalGraph.tsx
 
 import { useMemo, useRef, useState, useCallback } from "react";
-import type { MoveReview } from "@/lib/chess/reviewEngine";
+import type { MoveReview, MoveClassification } from "@/lib/chess/reviewEngine";
+import { CLASSIFICATION_META } from "@/components/review/MoveClassificationBadge";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ interface PlotPoint {
   mateForWhite: boolean;
   evalPawns: number;
   rawEval: number | null;
+  classification: MoveClassification | null; // null for start position
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -38,6 +40,13 @@ const PAD_BOTTOM = 8;
 const PLOT_W     = SVG_W - PAD_LEFT - PAD_RIGHT;
 const PLOT_H     = SVG_H - PAD_TOP - PAD_BOTTOM;
 const ZERO_Y     = PAD_TOP + PLOT_H / 2;
+
+// Classifications notable enough to mark directly on the graph, mirroring
+// the chess.com/lichess convention of flagging only the moves that matter —
+// Good/Excellent/Inaccuracy are too common to be worth the visual noise.
+const NOTABLE_CLASSIFICATIONS: ReadonlySet<MoveClassification> = new Set([
+  "brilliant", "great", "missedWin", "mistake", "blunder",
+]);
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -70,6 +79,11 @@ function formatMoveLabel(p: PlotPoint): string {
   return isWhite ? `${moveNum}. ${san}` : `${moveNum}... ${san}`;
 }
 
+/** Tailwind text-color utility -> matching fill-color utility (e.g. "text-red-400" -> "fill-red-400"). */
+function toFillClass(colorClass: string): string {
+  return colorClass.replace(/^text-/, "fill-");
+}
+
 // ─── Plot point construction ──────────────────────────────────────────────────
 
 function buildPlotPoints(moves: readonly MoveReview[]): PlotPoint[] {
@@ -87,6 +101,7 @@ function buildPlotPoints(moves: readonly MoveReview[]): PlotPoint[] {
     mateForWhite:false,
     evalPawns:   0,
     rawEval:     null,
+    classification: null,
   }];
 
   for (let i = 0; i < moves.length; i++) {
@@ -116,6 +131,7 @@ function buildPlotPoints(moves: readonly MoveReview[]): PlotPoint[] {
       mateForWhite,
       evalPawns,
       rawEval:     m.evalAfter,
+      classification: m.classification,
     });
   }
 
@@ -220,6 +236,20 @@ export function EvalGraph({
     [points],
   );
 
+  // Notable moves (Brilliant/Great/Missed Win/Mistake/Blunder) — marked
+  // directly on the graph, mirroring chess.com/lichess's "important events"
+  // treatment. Mate points are handled separately above (triangle marker)
+  // since a mate-delivering move is also visually distinct regardless of
+  // its classification.
+  const notablePoints = useMemo(
+    () =>
+      points.filter(
+        (p): p is PlotPoint & { classification: MoveClassification } =>
+          p.classification !== null && NOTABLE_CLASSIFICATIONS.has(p.classification),
+      ),
+    [points],
+  );
+
   // ── Interaction ─────────────────────────────────────────────────────────
 
   const handleMouseMove = useCallback(
@@ -243,6 +273,11 @@ export function EvalGraph({
 
   // ── Render ──────────────────────────────────────────────────────────────
 
+  const tooltipClassification =
+    tooltipPoint?.classification && NOTABLE_CLASSIFICATIONS.has(tooltipPoint.classification)
+      ? tooltipPoint.classification
+      : null;
+
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
 
@@ -253,13 +288,22 @@ export function EvalGraph({
             <span className="text-[10px] text-muted-foreground font-mono">
               {formatMoveLabel(tooltipPoint)}
             </span>
-            <span className={`text-[10px] font-mono font-semibold ${
-              tooltipPoint.evalPawns > 0
-                ? "text-foreground"
-                : "text-muted-foreground"
-            }`}>
-              {formatTooltip(tooltipPoint)}
-            </span>
+            <div className="flex items-center gap-1.5">
+              {tooltipClassification && (
+                <span
+                  className={`text-[10px] font-semibold ${CLASSIFICATION_META[tooltipClassification].colorClass}`}
+                >
+                  {CLASSIFICATION_META[tooltipClassification].label}
+                </span>
+              )}
+              <span className={`text-[10px] font-mono font-semibold ${
+                tooltipPoint.evalPawns > 0
+                  ? "text-foreground"
+                  : "text-muted-foreground"
+              }`}>
+                {formatTooltip(tooltipPoint)}
+              </span>
+            </div>
           </>
         ) : (
           <span className="text-[10px] text-muted-foreground">Evaluation</span>
@@ -267,7 +311,8 @@ export function EvalGraph({
       </div>
 
       {/* SVG — explicit render order: fills → curve → phase lines →
-                 mate markers → current line → current dot → hover dot    */}
+                 mate markers → notable-move markers → current line →
+                 current dot → hover dot                                  */}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${SVG_W} ${SVG_H}`}
@@ -358,13 +403,26 @@ export function EvalGraph({
             : SVG_H - PAD_BOTTOM - size * 1.5;
           return (
             <polygon
-              key={p.ply}
+              key={`mate-${p.ply}`}
               points={`${p.x},${tipY} ${p.x - size},${baseY} ${p.x + size},${baseY}`}
               fillOpacity={0.8}
               className={p.mateForWhite ? "fill-foreground" : "fill-muted-foreground"}
             />
           );
         })}
+
+        {/* 7b. Notable move markers — Brilliant / Great / Missed Win /
+               Mistake / Blunder. Colored to match MoveClassificationBadge
+               exactly, so the graph and the move-breakdown table agree. */}
+        {notablePoints.map((p) => (
+          <circle
+            key={`notable-${p.ply}`}
+            cx={p.x} cy={p.y}
+            r={3.5}
+            strokeWidth={1}
+            className={`${toFillClass(CLASSIFICATION_META[p.classification].colorClass)} stroke-background`}
+          />
+        ))}
 
         {/* 8. Current ply vertical line */}
         {currentPoint && (

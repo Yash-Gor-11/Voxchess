@@ -38,13 +38,21 @@ export const CLASSIFICATION_META: Record<MoveClassification, ClassificationMeta>
     borderClass: "border-green-400/30",
     order:       2,
   },
+  excellent: {
+    label:       "Excellent",
+    symbol:      "✓",
+    colorClass:  "text-lime-400",
+    bgClass:     "bg-lime-400/10",
+    borderClass: "border-lime-400/30",
+    order:       3,
+  },
   good: {
     label:       "Good",
     symbol:      "✓",
     colorClass:  "text-green-300",
     bgClass:     "bg-green-300/10",
     borderClass: "border-green-300/20",
-    order:       3,
+    order:       4,
   },
   inaccuracy: {
     label:       "Inaccuracy",
@@ -52,7 +60,7 @@ export const CLASSIFICATION_META: Record<MoveClassification, ClassificationMeta>
     colorClass:  "text-yellow-400",
     bgClass:     "bg-yellow-400/10",
     borderClass: "border-yellow-400/30",
-    order:       4,
+    order:       5,
   },
   mistake: {
     label:       "Mistake",
@@ -60,7 +68,7 @@ export const CLASSIFICATION_META: Record<MoveClassification, ClassificationMeta>
     colorClass:  "text-orange-400",
     bgClass:     "bg-orange-400/10",
     borderClass: "border-orange-400/30",
-    order:       5,
+    order:       6,
   },
   blunder: {
     label:       "Blunder",
@@ -68,7 +76,7 @@ export const CLASSIFICATION_META: Record<MoveClassification, ClassificationMeta>
     colorClass:  "text-red-400",
     bgClass:     "bg-red-400/10",
     borderClass: "border-red-400/30",
-    order:       6,
+    order:       7,
   },
   missedWin: {
     label:       "Missed Win",
@@ -76,7 +84,7 @@ export const CLASSIFICATION_META: Record<MoveClassification, ClassificationMeta>
     colorClass:  "text-red-300",
     bgClass:     "bg-red-300/10",
     borderClass: "border-red-300/20",
-    order:       7,
+    order:       8,
   },
   book: {
     label:       "Book",
@@ -84,7 +92,7 @@ export const CLASSIFICATION_META: Record<MoveClassification, ClassificationMeta>
     colorClass:  "text-blue-400",
     bgClass:     "bg-blue-400/10",
     borderClass: "border-blue-400/20",
-    order:       8,
+    order:       9,
   },
 };
 

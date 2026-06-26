@@ -59,13 +59,13 @@ type PositionAnalysis = {
   readonly ply: number;          // 0 = starting position
   readonly fen: string;
   readonly evaluation: {
-    readonly cp: number | null;       // centipawns, Stockfish side-to-move perspective
-    readonly mate: number | null;
+    readonly cp: number | null;       // centipawns, White's perspective
+    readonly mate: number | null;     // forced-mate count, White's perspective
   };
   readonly bestLine: readonly {
     readonly move: string;             // UCI
     readonly pv: string;             // full PV
-    readonly score: number;
+    readonly score: number;          // already side-to-move perspective
     readonly mate: number | null;
   }[];
   readonly material: MaterialCount;
@@ -188,6 +188,13 @@ function parseExistingReview(pgn: string, startFen: string | null): ReviewModel 
       bestMoveEval: ann.bestMoveEval,
       bestMoveMate: ann.bestMoveMate,
       cpLoss: 0,
+      // Recovered from the [%wpl] PGN tag (parseMoveAnnotation). PGNs saved
+      // before this tag existed have no [%wpl] match and fall back to 0
+      // inside parseMoveAnnotation — but those PGNs are version < 4 anyway,
+      // so reviewNeedsUpgrade() already forces the "setup" phase prompting
+      // re-analysis before this value would be used in an accuracy
+      // computation.
+      winPercentLoss: ann.winPercentLoss,
       classification: ann.classification ?? (isBook ? "book" : "good"),
       isBook,
       engineLines: [],
@@ -228,6 +235,7 @@ function ReviewPage() {
   // Holds the resolve function for the currently in-flight evaluateAsync() call.
   const pendingEvalRef = useRef<((result: NonNullable<typeof evaluation>) => void) | null>(null);
   const pendingDepthRef = useRef(0);
+
   // ── Load game ─────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -320,16 +328,18 @@ function ReviewPage() {
     const analyses: PositionAnalysis[] = [];
 
     try {
-
       const terminal = new Chess(positions.at(-1)!);
 
       const positionsToEvaluate = terminal.isGameOver()
         ? positions.length - 1
         : positions.length;
+
+
       for (let ply = 0; ply < positionsToEvaluate; ply++) {
         if (cancelledRef.current) return;
 
         const result = await evaluateAsync(positions[ply], config);
+
         analyses.push({
           ply,
           fen: positions[ply],
@@ -340,14 +350,32 @@ function ReviewPage() {
 
         setProgress((ply + 1) / positions.length);
       }
+
+
       if (terminal.isGameOver()) {
+        // For checkmate specifically, synthesize a signed mate value (White's
+        // perspective, matching evaluation.mate's contract elsewhere) instead
+        // of leaving it null. Without this, classifyMove's missedWin check
+        // (mateBefore > 0 && mateAfter === null) cannot distinguish "the
+        // game ended in checkmate" from "we didn't evaluate this terminal
+        // position" — both produce mateAfter === null — so the actual
+        // mating move gets misclassified as a missed win instead of best.
+        //
+        // Other terminal states (stalemate, insufficient material, etc.)
+        // correctly leave mate as null: no mate was delivered, so a forced
+        // mate that was missed in favor of a draw should still surface as
+        // a genuine missedWin.
+        const isCheckmate = terminal.isCheckmate();
+        // terminal.turn() is the side with no legal moves — i.e. the side
+        // who got checkmated. If White got mated, that's bad for White
+        // (negative); if Black got mated, White delivered it (positive).
+        const matedSide = terminal.turn();
+        const syntheticMate = isCheckmate ? (matedSide === "w" ? -1 : 1) : null;
+
         analyses.push({
           ply: positions.length - 1,
           fen: positions.at(-1)!,
-          evaluation: {
-            cp: null,
-            mate: null,
-          },
+          evaluation: { cp: null, mate: syntheticMate },
           bestLine: [],
           material: countMaterial(positions.at(-1)!),
         });
@@ -379,39 +407,72 @@ function ReviewPage() {
 
       // Extract side-to-move directly from FEN field 2 — avoids a Chess() instance.
       const sideToMove = before.fen.split(" ")[1] as "w" | "b";
-      // Stockfish eval is side-to-move perspective; classifyMove expects the same.
-      // useStockfish sign conventions:
-      //   evaluation.cp / evaluation.mate  — White's perspective (needs flip)
-      //   bestLine[].score                 — already side-to-move perspective (no flip)
+
+      // useStockfish contract (verified against applyHumanError, which only
+      // reorders bestMoves[] entries without transforming score/mate —
+      // meaning each entry's score and mate must already share one
+      // consistent perspective, since they're treated as an atomic unit):
+      //   evaluation.cp / evaluation.mate   — White's perspective
+      //   bestLine[].score / bestLine[].mate — side-to-move perspective
       //
-      // Only the position evaluations are sign-flipped here.
-      // Do NOT apply flipSign to bestEntry.score — it would silently break
-      // move classification for Black.
+      // Both evaluation.cp AND evaluation.mate are flipped here — they share
+      // the White's-perspective contract. (Earlier code only flipped cp and
+      // left mate unflipped, which silently inverted "missed forced mate"
+      // detection for Black — fixed here.)
+      // Do NOT apply flipSign to bestLine[].score or bestLine[].mate — they
+      // are already side-to-move and flipping them would silently break
+      // move classification.
       const flipSign = sideToMove === "b" ? -1 : 1;
 
       const uci = sanToUci(before.fen, san) ?? "";
       const bestEntry = before.bestLine[0];
       const bestMoveUci = bestEntry?.move ?? uci;
       const bestMoveSan = uciToSan(before.fen, bestMoveUci);
+      // Flip mate as well for consistency.
+      const bestMoveMate =
+        bestEntry?.mate != null
+          ? bestEntry.mate * flipSign
+          : null;
 
       const evalBeforeSide = (before.evaluation.cp ?? 0) * flipSign;
       const evalAfterSide = (after.evaluation.cp ?? 0) * flipSign;
-      const bestEvalSide = bestEntry?.score ?? evalAfterSide;
+      // Flip best eval to side-to-move perspective.
+      const bestEvalSide =
+        bestEntry
+          ? bestEntry.score * flipSign
+          : evalAfterSide;
+
+      const mateBeforeSide = before.evaluation.mate !== null ? before.evaluation.mate * flipSign : null;
+      const mateAfterSide = after.evaluation.mate !== null ? after.evaluation.mate * flipSign : null;
 
       const isBook = (moveIdx + 1) <= lastBookPly;
+      const secondEntry = before.bestLine[1];
+      // Flip second PV as well.
+      const secondBestEval =
+        secondEntry
+          ? secondEntry.score * flipSign
+          : null;
+      const secondBestMate =
+        secondEntry?.mate != null
+          ? secondEntry.mate * flipSign
+          : null;
 
-      const { classification, cpLoss } = classifyMove({
+
+      const { classification, cpLoss, winPercentLoss } = classifyMove({
         uci,
         bestMove: bestMoveUci,
         evalBefore: evalBeforeSide,
         evalAfter: evalAfterSide,
         bestMoveEval: bestEvalSide,
-        mateBefore: before.evaluation.mate,
-        mateAfter: after.evaluation.mate,
+        bestMoveMate,
+        mateBefore: mateBeforeSide,
+        mateAfter: mateAfterSide,
         materialBefore: before.material,
         materialAfter: after.material,
         sideToMove,
         isBook,
+        secondBestEval,
+        secondBestMate,
       });
 
       // Full PV lines — same model as the analysis page (uciPvToSan, slice 6).
@@ -436,8 +497,9 @@ function ReviewPage() {
         bestMove: bestMoveUci,
         bestMoveSan,
         bestMoveEval: bestEntry?.score ?? null,
-        bestMoveMate: bestEntry?.mate ?? null,
+        bestMoveMate,
         cpLoss,
+        winPercentLoss,
         classification,
         isBook,
         engineLines,
