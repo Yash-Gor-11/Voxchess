@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { User, Trophy, Swords, Minus, TrendingUp, LineChart } from "lucide-react";
+import { User, Trophy, Swords, X, Equal, TrendingUp, LineChart } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { getGames } from "@/lib/supabase/games";
+import { getPlatformGames } from "@/lib/supabase/games";
 import { supabase } from "@/integrations/supabase/client";
 import { countMovesFromPgn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_app/profile")({
 });
 
 function ProfilePage() {
-  const [games, setGames] = useState<Awaited<ReturnType<typeof getGames>>>([]);
+  const [games, setGames] = useState<Awaited<ReturnType<typeof getPlatformGames>>>([]);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [dbUser, setDbUser] = useState<Tables<"users"> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,8 +40,11 @@ function ProfilePage() {
           .eq("id", user.id)
           .single();
         if (!dbError) setDbUser(dbData);
-        const g = await getGames();
-        setGames(g);
+        const g = await getPlatformGames();
+        const sorted = [...g].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+        setGames(sorted);
       } catch {
         toast.error("Could not load profile");
       } finally {
@@ -51,11 +54,15 @@ function ProfilePage() {
     load();
   }, []);
 
+  // Win rate only considers completed games (result must be a finished outcome).
+  const completed = games.filter(
+    (g) => g.result === "white" || g.result === "black" || g.result === "draw",
+  );
   const wins = games.filter((g) => g.result === "white").length;
   const losses = games.filter((g) => g.result === "black").length;
   const draws = games.filter((g) => g.result === "draw").length;
   const total = games.length;
-  const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+  const winRate = completed.length > 0 ? Math.round((wins / completed.length) * 100) : 0;
 
   const displayName = dbUser?.display_name || user?.email?.split("@")[0] || "Player";
   const memberSince = user?.created_at
@@ -65,10 +72,8 @@ function ProfilePage() {
   const stats = [
     { label: "Games played", value: total, icon: Swords },
     { label: "Wins", value: wins, icon: Trophy },
-    { label: "Losses", value: losses, icon: Minus },
-    { label: "Draws", value: draws, icon: Minus },
-    { label: "Win rate", value: `${winRate}%`, icon: TrendingUp },
-    { label: "Rating", value: dbUser?.rating ?? 1200, icon: TrendingUp },
+    { label: "Draws", value: draws, icon: Equal },
+    { label: "Losses", value: losses, icon: X },
   ];
 
   return (
@@ -88,25 +93,36 @@ function ProfilePage() {
               <div className="text-sm text-muted-foreground mt-0.5">{user?.email}</div>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline">Member since {memberSince}</Badge>
-                <Badge variant="secondary">Rating {loading ? "—" : (dbUser?.rating ?? 1200)}</Badge>
               </div>
             </div>
           </div>
         </Card>
 
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {stats.map((s) => {
-            const Icon = s.icon;
-            return (
-              <Card key={s.label} className="p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-muted-foreground">{s.label}</span>
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="text-2xl font-semibold">{loading ? "—" : s.value}</div>
-              </Card>
-            );
-          })}
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            {stats.map((s) => {
+              const Icon = s.icon;
+              return (
+                <Card key={s.label} className="p-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-muted-foreground">{s.label}</span>
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="text-2xl font-semibold">{loading ? "—" : s.value}</div>
+                </Card>
+              );
+            })}
+          </div>
+
+          <Card className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-[var(--accent-blue)]" />
+                <span className="text-sm font-medium">Win rate</span>
+              </div>
+              <div className="text-2xl font-semibold">{loading ? "—" : `${winRate}%`}</div>
+            </div>
+          </Card>
         </div>
 
         <Card className="p-5">
