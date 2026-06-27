@@ -30,6 +30,12 @@ import { hashText } from "@/lib/voice/hashText";
 import { addToAnalysis } from "@/lib/supabase/annotations";
 import { getPlayStorageKey } from "@/lib/authStorage";
 import { MenuItem, MenuSeparator } from "@/components/chess/MenuItems";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+import type { Tables } from "@/integrations/supabase/types";
+import { preparePlatformPgn } from "@/lib/chess/pgn";
+import { detectOpening } from "@/lib/chess/openings";
+import type { GameResult } from "@/lib/chess/pgn";
+import { supabase } from "@/integrations/supabase/client";
 
 type PlaySearch = {
   fen?: string;
@@ -62,7 +68,7 @@ export const Route = createFileRoute("/_app/play")({
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function getGameResult(game: import("chess.js").Chess): "white" | "black" | "draw" | "ongoing" {
+function getGameResult(game: Chess): GameResult {
   if (!game.isGameOver()) return "ongoing";
   if (game.isCheckmate()) return game.turn() === "w" ? "black" : "white";
   return "draw";
@@ -134,6 +140,8 @@ function PlayPage() {
   );
   const [playerColor, setPlayerColor] = useState<"w" | "b">(savedGame?.playerColor ?? "w");
   const [eloIndex, setEloIndex] = useState(savedGame?.eloIndex ?? 5);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [dbUser, setDbUser] = useState<Tables<"users"> | null>(null);
   const [personalityId, setPersonalityId] = useState<PersonalityId>(savedGame?.personalityId ?? "frost");
   const [startingFen, setStartingFen] = useState<string | null>(savedGame?.startFen ?? null);
   const [provenance, setProvenance] = useState<Provenance>(() => ({
@@ -259,6 +267,31 @@ function PlayPage() {
     }
   }, [hasFreshLaunch]);
 
+  useEffect(() => {
+    async function loadCurrentUser() {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) return;
+
+      setUser(user);
+
+      const { data } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (data) {
+        setDbUser(data);
+      }
+    }
+
+    loadCurrentUser();
+  }, []);
+
   // Keep the chessboard callback stable across unrelated page updates.
   const handlePieceDrop = useCallback(
     (args: any) => {
@@ -281,7 +314,6 @@ function PlayPage() {
   const elo = ELO_VALUES[eloIndex] as EloValue;
   const eloConfig = ELO_CONFIG[elo];
   const currentPersonality = getPersonality(personalityId);
-
   const boardOrientation: "white" | "black" = ((playerColor === "b") !== flipped) ? "black" : "white";
   const moveCount = history.length;
 
@@ -623,8 +655,28 @@ function PlayPage() {
     );
   }
 
-  async function saveCurrentGame(result: string): Promise<void> {
-    const pgn = exportPgn();
+  async function saveCurrentGame(result: GameResult): Promise<void> {
+    const personality = getPersonality(personalityId);
+    const botElo = ELO_VALUES[eloIndex];
+    const botStrength = ELO_CONFIG[botElo].label;
+    const displayName =
+      dbUser?.display_name ??
+      user?.email?.split("@")[0] ??
+      "Player";
+    const opening =
+      fenHistory.length > 1
+        ? detectOpening(fenHistory)
+        : null;
+
+    const pgn = preparePlatformPgn(game, {
+      result,
+      playerColor,
+      playerName: displayName,
+      botDisplayName: personality.name,
+      botElo,
+      botStrength,
+      opening,
+    });
     const playSettings = { eloIndex, personalityId, playerColor };
 
     if (sessionKind === "game" && currentGameId) {
