@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getPlatformGames } from "@/lib/supabase/games";
 import { supabase } from "@/integrations/supabase/client";
-import { countMovesFromPgn } from "@/lib/utils";
+import { buildGameCardData, type SemanticResult } from "@/lib/chess/gameCard";
 import { toast } from "sonner";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { Tables } from "@/integrations/supabase/types";
@@ -17,6 +17,22 @@ export const Route = createFileRoute("/_app/profile")({
   head: () => ({ meta: [{ title: "Profile — VoxChess" }] }),
   component: ProfilePage,
 });
+
+// Shared semantic-result helpers.
+function resultLabel(result: SemanticResult | undefined): string {
+  if (!result || result === "ongoing") return "Ongoing";
+  if (result === "white") return "White wins";
+  if (result === "black") return "Black wins";
+  return "Draw";
+}
+
+function resultVariant(
+  result: SemanticResult | undefined,
+): "default" | "destructive" | "secondary" {
+  if (result === "white") return "default";
+  if (result === "black") return "destructive";
+  return "secondary";
+}
 
 function ProfilePage() {
   const [games, setGames] = useState<Awaited<ReturnType<typeof getPlatformGames>>>([]);
@@ -40,11 +56,10 @@ function ProfilePage() {
           .eq("id", user.id)
           .single();
         if (!dbError) setDbUser(dbData);
+        // getPlatformGames() already orders by created_at descending —
+        // no need to re-sort client-side.
         const g = await getPlatformGames();
-        const sorted = [...g].sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        );
-        setGames(sorted);
+        setGames(g);
       } catch {
         toast.error("Could not load profile");
       } finally {
@@ -54,15 +69,31 @@ function ProfilePage() {
     load();
   }, []);
 
-  // Win rate only considers completed games (result must be a finished outcome).
-  const completed = games.filter(
-    (g) => g.result === "white" || g.result === "black" || g.result === "draw",
-  );
-  const wins = games.filter((g) => g.result === "white").length;
-  const losses = games.filter((g) => g.result === "black").length;
-  const draws = games.filter((g) => g.result === "draw").length;
+  // Account-level aggregates — intentionally read g.result (the raw DB
+  // column) directly, not card.result. These are stats about the
+  // account's win/loss/draw history, not card presentation, so they
+  // stay tied to the database's own source of truth rather than the
+  // resolver's per-card vocabulary (even though the values overlap
+  // today, these two things answer different questions).
+  let wins = 0;
+  let losses = 0;
+  let draws = 0;
+  for (const g of games) {
+    switch (g.result) {
+      case "white":
+        wins++;
+        break;
+      case "black":
+        losses++;
+        break;
+      case "draw":
+        draws++;
+        break;
+    }
+  }
+  const completed = wins + losses + draws;
   const total = games.length;
-  const winRate = completed.length > 0 ? Math.round((wins / completed.length) * 100) : 0;
+  const winRate = completed > 0 ? Math.round((wins / completed) * 100) : 0;
 
   const displayName = dbUser?.display_name || user?.email?.split("@")[0] || "Player";
   const memberSince = user?.created_at
@@ -134,36 +165,30 @@ function ProfilePage() {
           ) : (
             <div className="space-y-2">
               {games.slice(0, 8).map((g) => {
-                const moveCount = countMovesFromPgn(g.pgn);
+                const card = buildGameCardData(g);
+                const title = `${card.white.name ?? "White"} vs ${card.black.name ?? "Black"}`;
                 return (
                   <div
                     key={g.id}
                     className="flex items-center justify-between py-2 border-b border-border/40 last:border-0"
                   >
                     <div>
-                      <div className="text-sm font-medium">
-                        {new Date(g.created_at).toLocaleDateString("en-US", {
+                      <div className="text-sm font-medium">{title}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {card.moveCount} moves ·{" "}
+                        {new Date(card.createdAt).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
                         })}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {moveCount} moves · {g.mode}
-                      </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          g.result === "white"
-                            ? "default"
-                            : g.result === "black"
-                              ? "destructive"
-                              : "secondary"
-                        }
-                      >
-                        {g.result ?? "ongoing"}
-                      </Badge>
+                      {card.result && card.result !== "ongoing" && (
+                        <Badge variant={resultVariant(card.result)}>
+                          {resultLabel(card.result)}
+                        </Badge>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"

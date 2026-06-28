@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getImportedGames, deleteGame } from "@/lib/supabase/games";
 import type { Game } from "@/lib/supabase/games";
-import { countMovesFromPgn } from "@/lib/utils";
+import { buildGameCardData, type SemanticResult } from "@/lib/chess/gameCard";
 import { MenuItem, MenuSeparator } from "@/components/chess/MenuItems";
 
 export const Route = createFileRoute("/_app/games/imported")({
@@ -19,11 +19,17 @@ export const Route = createFileRoute("/_app/games/imported")({
 });
 
 function resultVariant(
-  result: string | null,
+  result: SemanticResult | undefined,
 ): "default" | "destructive" | "secondary" {
   if (result === "white") return "default";
   if (result === "black") return "destructive";
   return "secondary";
+}
+
+function resultBadgeText(result: SemanticResult): string {
+  if (result === "white") return "1–0";
+  if (result === "black") return "0–1";
+  return "½–½";
 }
 
 function ImportedGamesPage() {
@@ -68,8 +74,6 @@ function ImportedGamesPage() {
       toast.error("Could not delete");
     }
   }
-
-  const isPosition = (g: Game) => !!g.fen && !g.pgn;
 
   return (
     <div className="p-6 space-y-6 h-full overflow-y-auto">
@@ -118,19 +122,26 @@ function ImportedGamesPage() {
       {/* List */}
       <div className="space-y-2">
         {games.map((g, i) => {
-          const pos = isPosition(g);
+          const card = buildGameCardData(g);
+          const pos = card.isPositionOnly;
+
+          // Position title: card.title (metadata.name), page-owned default
+          // text. Ordinary game: composed here, not by the resolver.
           const title = pos
-            ? (g.metadata?.name ?? "Saved position")
-            : `${g.metadata?.White ?? "White"} vs ${g.metadata?.Black ?? "Black"}`;
+            ? (card.title ?? "Saved position")
+            : `${card.white.name ?? "White"} vs ${card.black.name ?? "Black"}`;
+
+          // Position subtitle still reads metadata.note/g.fen directly —
+          // gameCard.ts doesn't expose `note` yet (see resolver design notes).
           const subtitle = pos
             ? (g.metadata?.note ?? g.fen ?? "")
             : [
-              `${countMovesFromPgn(g.pgn)} moves`,
-              g.metadata?.Event,
-              g.metadata?.Date,
-            ]
-              .filter(Boolean)
-              .join(" · ");
+                `${card.moveCount} moves`,
+                card.event,
+                card.gameDate,
+              ]
+                .filter(Boolean)
+                .join(" · ");
 
           const isMenuOpen = openMenuId === g.id;
 
@@ -162,16 +173,12 @@ function ImportedGamesPage() {
               </div>
 
               {/* Result badge — PGN games only */}
-              {!pos && g.result && g.result !== "ongoing" && (
+              {!pos && card.result && card.result !== "ongoing" && (
                 <Badge
-                  variant={resultVariant(g.result)}
+                  variant={resultVariant(card.result)}
                   className="flex-shrink-0"
                 >
-                  {g.result === "white"
-                    ? "1–0"
-                    : g.result === "black"
-                      ? "0–1"
-                      : "½–½"}
+                  {resultBadgeText(card.result)}
                 </Badge>
               )}
 

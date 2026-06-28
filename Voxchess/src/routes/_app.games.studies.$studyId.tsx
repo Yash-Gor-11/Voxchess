@@ -8,21 +8,23 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { getStudy, getStudyChapters, renameStudy } from "@/lib/supabase/games";
 import type { Game, Study } from "@/lib/supabase/games";
-import { countMovesFromPgn } from "@/lib/utils";
+import { buildGameCardData, type SemanticResult } from "@/lib/chess/gameCard";
 
 export const Route = createFileRoute("/_app/games/studies/$studyId")({
   head: () => ({ meta: [{ title: "Study — VoxChess" }] }),
   component: StudyDetailPage,
 });
 
-function resultShort(result: string | null): string {
+function resultShort(result: SemanticResult | undefined): string {
   if (result === "white") return "1–0";
   if (result === "black") return "0–1";
   if (result === "draw") return "½–½";
   return "*";
 }
 
-function resultVariant(result: string | null): "default" | "destructive" | "secondary" {
+function resultVariant(
+  result: SemanticResult | undefined,
+): "default" | "destructive" | "secondary" {
   if (result === "white") return "default";
   if (result === "black") return "destructive";
   return "secondary";
@@ -144,10 +146,9 @@ function StudyDetailPage() {
       {/* Chapter list */}
       <div className="space-y-2">
         {chapters.map((ch, i) => {
-          const chapterName = ch.metadata?.ChapterName ?? ch.metadata?.Event;
-          const white = ch.metadata?.White ?? "White";
-          const black = ch.metadata?.Black ?? "Black";
-          const moveCount = countMovesFromPgn(ch.pgn);
+          const card = buildGameCardData(ch);
+          const white = card.white.name ?? "White";
+          const black = card.black.name ?? "Black";
 
           return (
             <Card
@@ -173,17 +174,17 @@ function StudyDetailPage() {
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">
-                  {chapterName ?? `${white} vs ${black}`}
+                  {card.chapterName ?? `${white} vs ${black}`}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  {white} vs {black} · {moveCount} moves
+                  {white} vs {black} · {card.moveCount} moves
                 </div>
               </div>
 
               {/* Result */}
-              {ch.result && ch.result !== "ongoing" && (
-                <Badge variant={resultVariant(ch.result)} className="flex-shrink-0">
-                  {resultShort(ch.result)}
+              {card.result && card.result !== "ongoing" && (
+                <Badge variant={resultVariant(card.result)} className="flex-shrink-0">
+                  {resultShort(card.result)}
                 </Badge>
               )}
 

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getPlatformGames, deleteGame } from "@/lib/supabase/games";
 import type { Game } from "@/lib/supabase/games";
-import { countMovesFromPgn } from "@/lib/utils";
+import { buildGameCardData, type SemanticResult } from "@/lib/chess/gameCard";
 import { MenuItem, MenuSeparator } from "@/components/chess/MenuItems";
 
 export const Route = createFileRoute("/_app/games/my-games")({
@@ -18,16 +18,15 @@ export const Route = createFileRoute("/_app/games/my-games")({
   component: MyGamesPage,
 });
 
-function resultLabel(result: string | null): string {
+function resultLabel(result: SemanticResult | undefined): string {
   if (!result || result === "ongoing") return "Ongoing";
   if (result === "white") return "White wins";
   if (result === "black") return "Black wins";
-  if (result === "draw") return "Draw";
-  return result;
+  return "Draw";
 }
 
 function resultVariant(
-  result: string | null,
+  result: SemanticResult | undefined,
 ): "default" | "destructive" | "secondary" {
   if (result === "white") return "default";
   if (result === "black") return "destructive";
@@ -77,7 +76,9 @@ function MyGamesPage() {
     }
   }
 
-  const isOngoing = (g: Game) => !g.result || g.result === "ongoing";
+  // gameCard.ts's result is already semantic ("ongoing" or undefined
+  // both mean no result yet) — same check as the original.
+  const isOngoing = (result: SemanticResult | undefined) => !result || result === "ongoing";
 
   return (
     <div className="h-full overflow-y-auto p-6 space-y-6">
@@ -119,10 +120,10 @@ function MyGamesPage() {
       {/* Game list */}
       <div className="space-y-2">
         {games.map((g, i) => {
-          const moveCount = countMovesFromPgn(g.pgn);
-          const white = g.metadata?.White ?? "White";
-          const black = g.metadata?.Black ?? "Black";
-          const ongoing = isOngoing(g);
+          const card = buildGameCardData(g);
+          const white = card.white.name ?? "White";
+          const black = card.black.name ?? "Black";
+          const ongoing = isOngoing(card.result);
           const isMenuOpen = openMenuId === g.id;
 
           return (
@@ -140,8 +141,8 @@ function MyGamesPage() {
                     {white} vs {black}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    {moveCount} moves ·{" "}
-                    {new Date(g.created_at).toLocaleDateString("en-US", {
+                    {card.moveCount} moves ·{" "}
+                    {new Date(card.createdAt).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
@@ -150,10 +151,10 @@ function MyGamesPage() {
                 </div>
 
                 <Badge
-                  variant={resultVariant(g.result)}
+                  variant={resultVariant(card.result)}
                   className="flex-shrink-0 text-xs"
                 >
-                  {resultLabel(g.result)}
+                  {resultLabel(card.result)}
                 </Badge>
 
                 {/* Primary actions + overflow menu */}
