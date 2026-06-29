@@ -27,6 +27,7 @@ import {
 } from "@/lib/chess/reviewEngine";
 import { detectOpening } from "@/lib/chess/openings";
 import { uciPvToSan } from "@/lib/chess/pvUtils";
+import { buildGameCardData } from "@/lib/chess/gameCard";
 
 import { ReviewOverview } from "@/components/review/ReviewOverview";
 import { ReviewBoard } from "@/components/review/ReviewBoard";
@@ -217,6 +218,8 @@ function ReviewPage() {
   const [gameResult, setGameResult] = useState<string | null>(null);
   const [personalityId, setPersonalityId] = useState<PersonalityId | null>(null);
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
+  const [whiteName, setWhiteName] = useState<string | undefined>(undefined);
+  const [blackName, setBlackName] = useState<string | undefined>(undefined);
   const [fenHistory, setFenHistory] = useState<readonly string[]>([]);
   const [sanMoves, setSanMoves] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -252,11 +255,18 @@ function ReviewPage() {
         const pid = (meta?.personalityId as PersonalityId | undefined) ?? null;
         const pc = meta?.playerColor === "black" ? "black" : "white";
 
+        // Single source of truth for display names (PGN header -> legacy
+        // metadata -> bot personality fallback chain) — same resolver My
+        // Games / Imported Games / Study Detail / Profile already use.
+        const cardData = buildGameCardData(g);
+
         setPgn(resolvedPgn);
         setStartFen(resolvedStartFen);
         setGameResult(result);
         setPersonalityId(pid);
         setPlayerColor(pc);
+        setWhiteName(cardData.white.name);
+        setBlackName(cardData.black.name);
 
         const fens = buildFenHistory(resolvedPgn, resolvedStartFen);
         const sans = extractSanMoves(resolvedPgn, resolvedStartFen);
@@ -701,6 +711,8 @@ function ReviewPage() {
         fenHistory={fenHistory}
         playerColor={playerColor}
         personalityId={personalityId}
+        whiteName={whiteName}
+        blackName={blackName}
         onBackToOverview={() => setPhase("overview")}
       />
     );

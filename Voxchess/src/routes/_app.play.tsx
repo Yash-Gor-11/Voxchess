@@ -2,7 +2,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, useRef } from "react";
 import {
-  Bot, User, Plus, ChevronLeft, MoreHorizontal,
+  Bot, User, Plus, ChevronLeft, ChevronRight, ChevronFirst, ChevronLast, MoreHorizontal,
   Undo2, Save, Flag, Lightbulb, Handshake, FlipHorizontal2, Check, GitBranch,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { Chessboard } from "react-chessboard";
 import { GameOverDialog } from "@/components/chess/GameOverDialog";
 import { BoardOverlay } from "@/components/chess/BoardOverlay";
+import { ResizeHandle } from "@/components/chess/ResizeHandle";
+import { useResizableBoard } from "@/hooks/useResizableBoard";
 import { useChessGame } from "@/hooks/useChessGame";
 import { useChessVoice } from "@/hooks/useChessVoice";
 import { useStockfish } from "@/hooks/useStockfish";
@@ -162,7 +164,6 @@ function PlayPage() {
   // ── Game state ───────────────────────────────────────────────────────────
   const [computerThinking, setComputerThinking] = useState(false);
   const [overOpen, setOverOpen] = useState(false);
-  const [boardSize, setBoardSize] = useState(calcPlayBoardSize);
   const [isPortrait, setIsPortrait] = useState(
     typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false,
   );
@@ -196,6 +197,11 @@ function PlayPage() {
   const restoredRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // ── Resizable board (shared hook — drag math + window-resize bookkeeping) ──
+  const { boardSize, boardCardRef, dragHandleProps } = useResizableBoard({
+    calcInitialSize: calcPlayBoardSize,
+  });
+
   const [fenHistory, setFenHistory] = useState<string[]>(() => [fen]);
   const [viewIndex, setViewIndex] = useState(0);
   const isAtLatest = viewIndex === fenHistory.length - 1;
@@ -203,6 +209,19 @@ function PlayPage() {
 
   const isAtLatestRef = useRef(true);
   const fenHistoryLengthRef = useRef(1);
+
+  // ── Move navigation (mirrors Analysis/Review's nav-row API shape) ─────────
+  const goFirst = useCallback(() => setViewIndex(0), []);
+  const goBackward = useCallback(() => setViewIndex((i) => Math.max(0, i - 1)), []);
+  const goForward = useCallback(
+    () => setViewIndex((i) => Math.min(fenHistoryLengthRef.current - 1, i + 1)),
+    [],
+  );
+  const goLast = useCallback(
+    () => setViewIndex(fenHistoryLengthRef.current - 1),
+    [],
+  );
+
   useEffect(() => { isAtLatestRef.current = isAtLatest; }, [isAtLatest]);
   useEffect(() => { fenHistoryLengthRef.current = fenHistory.length; }, [fenHistory.length]);
   useEffect(() => {
@@ -342,17 +361,16 @@ function PlayPage() {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [menuOpen]);
 
-  // Resize
+  // Resize (layout only — board sizing is owned by useResizableBoard)
   useEffect(() => {
     function onResize() {
       setIsPortrait(window.innerWidth < window.innerHeight);
-      setBoardSize(calcPlayBoardSize());
     }
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Space → voice
+  // Space → voice, arrows → move navigation (shared with the nav-row buttons)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const el = document.activeElement as HTMLElement | null;
@@ -362,12 +380,12 @@ function PlayPage() {
       if (!gameStarted || inputFocused) return;
       if (e.key === "ArrowLeft") {
         e.preventDefault();
-        setViewIndex(i => Math.max(0, i - 1));
+        goBackward();
         return;
       }
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        setViewIndex(i => Math.min(fenHistoryLengthRef.current - 1, i + 1));
+        goForward();
         return;
       }
       if (e.code === "Space") {
@@ -378,7 +396,7 @@ function PlayPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activate, gameStarted, isGameOver]);
+  }, [activate, gameStarted, isGameOver, goBackward, goForward]);
 
   // ── Avatar helpers ────────────────────────────────────────────────────────
   function speakAvatar(text: string, state: AvatarState = "talking", duration = 4000) {
@@ -1031,7 +1049,7 @@ function PlayPage() {
             : "flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 overflow-hidden"
         }>
           {/* Board card */}
-          <Card className={`p-3 ${isPortrait ? "shrink-0" : "overflow-hidden"}`}>
+          <Card ref={boardCardRef} className={`p-3 ${isPortrait ? "shrink-0" : "overflow-hidden"}`}>
             <div className={`flex flex-col items-center gap-2 ${isPortrait ? "" : "justify-center h-full"}`}>
 
               {/* Computer label */}
@@ -1050,26 +1068,72 @@ function PlayPage() {
               </div>
 
               {/* Board */}
-              <div
-                ref={boardContainerRef}
-                className="relative"
-                style={{ width: boardSize, height: boardSize }}
-              >
-                <Chessboard
-                  options={{
-                    position: displayFen,
-                    boardOrientation,
-                    onPieceDrop: handlePieceDrop,
-                    boardStyle: { borderRadius: 6, overflow: "hidden" },
-                    darkSquareStyle: { backgroundColor: boardTheme.dark },
-                    lightSquareStyle: { backgroundColor: boardTheme.light },
-                  }}
-                />
-                <BoardOverlay
-                  arrows={hintArrows}
-                  highlights={hintHighlights}
-                  boardRef={boardContainerRef}
-                />
+              <div className="relative flex-shrink-0">
+                <div
+                  ref={boardContainerRef}
+                  className="relative"
+                  style={{ width: boardSize, height: boardSize }}
+                >
+                  <Chessboard
+                    options={{
+                      position: displayFen,
+                      boardOrientation,
+                      onPieceDrop: handlePieceDrop,
+                      boardStyle: { borderRadius: 6, overflow: "hidden" },
+                      darkSquareStyle: { backgroundColor: boardTheme.dark },
+                      lightSquareStyle: { backgroundColor: boardTheme.light },
+                    }}
+                  />
+                  <BoardOverlay
+                    arrows={hintArrows}
+                    highlights={hintHighlights}
+                    boardRef={boardContainerRef}
+                  />
+                </div>
+                {!isPortrait && <ResizeHandle {...dragHandleProps} />}
+              </div>
+
+              {/* Move navigation — same row/styling as Analysis and Review */}
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={goFirst}
+                  disabled={viewIndex === 0}
+                  aria-label="First move"
+                >
+                  <ChevronFirst className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={goBackward}
+                  disabled={viewIndex === 0}
+                  aria-label="Previous move"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground font-mono w-16 text-center">
+                  {viewIndex} / {fenHistory.length - 1}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={goForward}
+                  disabled={isAtLatest}
+                  aria-label="Next move"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={goLast}
+                  disabled={isAtLatest}
+                  aria-label="Last move"
+                >
+                  <ChevronLast className="h-4 w-4" />
+                </Button>
               </div>
 
               {/* Player label */}

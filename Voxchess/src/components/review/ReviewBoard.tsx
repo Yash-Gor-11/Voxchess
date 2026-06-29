@@ -2,14 +2,18 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-    ChevronLeft, MoreHorizontal, FlipHorizontal2,
-    Check, BarChart2, Cpu, User2,
+    ChevronLeft, ChevronRight, ChevronFirst, ChevronLast,
+    MoreHorizontal, FlipHorizontal2,
+    Check, BarChart2, Cpu,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chessboard } from "react-chessboard";
 import { BoardOverlay } from "@/components/chess/BoardOverlay";
 import { EvalBar } from "@/components/chess/EvalBar";
+import { ResizeHandle } from "@/components/chess/ResizeHandle";
+import { useResizableBoard } from "@/hooks/useResizableBoard";
 import { ReviewCoach, type NavigationSource } from "@/components/review/ReviewCoach";
 import { ReviewMoveList } from "@/components/review/ReviewMoveList";
 import { EvalGraph } from "@/components/review/EvalGraph";
@@ -18,7 +22,6 @@ import { MenuItem, MenuSeparator } from "@/components/chess/MenuItems";
 import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 import type { ReviewModel } from "@/lib/chess/reviewEngine";
 import type { PersonalityId } from "@/lib/chess/personalities";
-import { getPersonality } from "@/lib/chess/personalities";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +30,8 @@ interface ReviewBoardProps {
     fenHistory: readonly string[];   // index = ply (0 = start position)
     playerColor: "white" | "black";
     personalityId: PersonalityId | null;
+    whiteName?: string;
+    blackName?: string;
     onBackToOverview: () => void;
 }
 
@@ -37,7 +42,11 @@ function calcBoardSize(): number {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const isPortrait = vw < vh;
-    if (isPortrait) return Math.min(Math.max(vw - 48, 180), 500);
+    // 80px margin matches Analysis's proven-safe portrait formula. Review
+    // previously used 48px (copied from Play, which has no eval bar sharing
+    // the row) — too tight once the eval bar sits beside the board, which
+    // is what let the board outgrow its Card in narrow portrait widths.
+    if (isPortrait) return Math.min(Math.max(vw - 80, 180), 500);
     const sidebarW = vw >= 768 ? 240 : 0;
     const rightPanelW = vw >= 1024 ? 300 : 0;
     const padding = 56;
@@ -51,6 +60,21 @@ function formatMateScore(mate: number): string {
     return mate > 0 ? `+M${mate}` : `-M${Math.abs(mate)}`;
 }
 
+/**
+ * One side's identity in the action bar: the resolved player/bot name
+ * (PGN White/Black header via buildGameCardData, which already falls
+ * back to the bot's personality name when no PGN/metadata name exists),
+ * or the plain side label if neither is available. No "You", no avatar
+ * image — plain text only, for both sides.
+ */
+function SideName({ name, fallback }: { name?: string; fallback: string }) {
+    return (
+        <span className="text-xs font-medium text-foreground truncate shrink-0">
+            {name ?? fallback}
+        </span>
+    );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ReviewBoard({
@@ -58,6 +82,8 @@ export function ReviewBoard({
     fenHistory,
     playerColor,
     personalityId,
+    whiteName,
+    blackName,
     onBackToOverview,
 }: ReviewBoardProps) {
     const { boardThemeIndex } = useSettingsStore();
@@ -69,12 +95,16 @@ export function ReviewBoard({
     const [showEvalGraph, setShowEvalGraph] = useState(false);
     const [flipped, setFlipped] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
-    const [boardSize, setBoardSize] = useState(calcBoardSize);
     const [isPortrait, setIsPortrait] = useState(
         typeof window !== "undefined"
             ? window.innerWidth < window.innerHeight
             : false,
     );
+
+    // ── Resizable board (shared hook — drag math + window-resize bookkeeping) ──
+    const { boardSize, boardCardRef, dragHandleProps } = useResizableBoard({
+        calcInitialSize: calcBoardSize,
+    });
 
     // ── Navigation state ──────────────────────────────────────────────────────
     const [currentPly, setCurrentPly] = useState(0);
@@ -88,7 +118,6 @@ export function ReviewBoard({
     const totalPlies = review.moves.length;
     const currentMove = review.moves[currentPly - 1] ?? null; // ply 0 = no move yet
     const displayFen = fenHistory[currentPly] ?? fenHistory[fenHistory.length - 1];
-    const personality = personalityId ? getPersonality(personalityId) : null;
 
     const evalForBar =
         currentMove === null
@@ -166,12 +195,11 @@ export function ReviewBoard({
         return () => window.removeEventListener("keydown", onKey);
     }, [goBackward, goForward, goFirst, goLast]);
 
-    // ── Resize ────────────────────────────────────────────────────────────────
+    // ── Resize (layout only — board sizing is owned by useResizableBoard) ─────
 
     useEffect(() => {
         function onResize() {
             setIsPortrait(window.innerWidth < window.innerHeight);
-            setBoardSize(calcBoardSize());
         }
         window.addEventListener("resize", onResize);
         return () => window.removeEventListener("resize", onResize);
@@ -209,10 +237,22 @@ export function ReviewBoard({
                         <span className="hidden sm:inline">Overview</span>
                     </button>
 
-                    {/* Current move indicator */}
-                    <div className="flex items-center gap-1.5 min-w-0">
+                    {/* Side names — White vs Black, plain text only */}
+                    <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                        <SideName name={whiteName} fallback="White" />
+                        <span className="text-muted-foreground text-xs shrink-0">vs</span>
+                        <SideName name={blackName} fallback="Black" />
+                    </div>
+
+                    <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                        {/* Current move indicator — classification badge first,
+                            then the move badge, then the ...menu */}
                         {currentMove ? (
                             <>
+                                <MoveClassificationBadge
+                                    classification={currentMove.classification}
+                                    variant="symbol"
+                                />
                                 <Badge
                                     variant="outline"
                                     className="shrink-0 font-mono text-xs"
@@ -221,37 +261,12 @@ export function ReviewBoard({
                                     {currentMove.ply % 2 === 1 ? "." : "…"}
                                     {" "}{currentMove.san}
                                 </Badge>
-                                <MoveClassificationBadge
-                                    classification={currentMove.classification}
-                                    variant="symbol"
-                                />
                             </>
                         ) : (
                             <Badge variant="outline" className="shrink-0 text-xs">
                                 Start
                             </Badge>
                         )}
-                    </div>
-
-                    <div className="ml-auto flex items-center gap-1 shrink-0">
-                        <button
-                            onClick={goBackward}
-                            disabled={currentPly === 0}
-                            aria-label="Previous move"
-                            className="inline-flex items-center justify-center h-8 w-8
-                         rounded-md hover:bg-accent transition-colors
-                         disabled:opacity-40 disabled:pointer-events-none
-                         text-sm"
-                        >‹</button>
-                        <button
-                            onClick={goForward}
-                            disabled={currentPly === totalPlies}
-                            aria-label="Next move"
-                            className="inline-flex items-center justify-center h-8 w-8
-                         rounded-md hover:bg-accent transition-colors
-                         disabled:opacity-40 disabled:pointer-events-none
-                         text-sm"
-                        >›</button>
 
                         {/* ... menu */}
                         <div className="relative" ref={menuRef}>
@@ -312,96 +327,86 @@ export function ReviewBoard({
                 }>
 
                     {/* Board card */}
-                    <Card className={`p-3 ${isPortrait ? "shrink-0" : "overflow-hidden"}`}>
+                    <Card ref={boardCardRef} className={`p-3 ${isPortrait ? "shrink-0" : "overflow-hidden"}`}>
                         <div className={`flex flex-col items-center gap-2 ${isPortrait ? "" : "justify-center h-full"
                             }`}>
 
-                            {/* Opponent label */}
-                            <div className="flex items-center gap-2 text-sm
-                              text-muted-foreground w-full justify-center">
-                                {personality ? (
-                                    <>
-                                        <img
-                                            src={personality.images.idle}
-                                            alt={personality.name}
-                                            className="h-5 w-5 object-contain"
-                                            loading="lazy"
-                                            decoding="async"
-                                            onError={(e) => {
-                                                (e.currentTarget as HTMLImageElement).style.display =
-                                                    "none";
-                                            }}
-                                        />
-                                        <span className="font-medium text-foreground text-xs">
-                                            {personality.name}
-                                        </span>
-                                    </>
-                                ) : (
-                                    <span className="text-xs text-muted-foreground">
-                                        {playerColor === "white" ? "Black" : "White"}
-                                    </span>
-                                )}
-                            </div>
-
                             {/* Board + eval bar */}
                             <div className="flex items-center gap-2">
-                                <EvalBar
-                                    evaluation={evalForBar}
-                                    orientation={boardOrientation}
-                                />
-                                <div
-                                    ref={boardRef}
-                                    className="relative"
-                                    style={{ width: boardSize, height: boardSize }}
+                                <div className="flex-shrink-0" style={{ height: boardSize }}>
+                                    <EvalBar
+                                        evaluation={evalForBar}
+                                        orientation={boardOrientation}
+                                    />
+                                </div>
+                                <div className="relative flex-shrink-0">
+                                    <div
+                                        ref={boardRef}
+                                        className="relative"
+                                        style={{ width: boardSize, height: boardSize }}
+                                    >
+                                        <Chessboard
+                                            options={{
+                                                position: displayFen,
+                                                boardOrientation,
+                                                boardStyle: { borderRadius: 6, overflow: "hidden" },
+                                                darkSquareStyle: { backgroundColor: boardTheme.dark },
+                                                lightSquareStyle: { backgroundColor: boardTheme.light },
+                                            }}
+                                        />
+                                        <BoardOverlay
+                                            arrows={bestMoveArrows}
+                                            highlights={[]}
+                                            boardRef={boardRef}
+                                        />
+                                    </div>
+                                    {!isPortrait && <ResizeHandle {...dragHandleProps} />}
+                                </div>
+                            </div>
+
+                            {/* Move navigation — always visible, matches Analysis's
+                                nav-control row exactly (icon buttons + counter) */}
+                            <div className="flex items-center gap-2 shrink-0">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={goFirst}
+                                    disabled={currentPly === 0}
+                                    aria-label="First move"
                                 >
-                                    <Chessboard
-                                        options={{
-                                            position: displayFen,
-                                            boardOrientation,
-                                            boardStyle: { borderRadius: 6, overflow: "hidden" },
-                                            darkSquareStyle: { backgroundColor: boardTheme.dark },
-                                            lightSquareStyle: { backgroundColor: boardTheme.light },
-                                        }}
-                                    />
-                                    <BoardOverlay
-                                        arrows={bestMoveArrows}
-                                        highlights={[]}
-                                        boardRef={boardRef}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Player label */}
-                            <div className="flex items-center gap-2 text-sm w-full justify-center">
-                                <User2 className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium text-xs">You</span>
-                                <span className="text-xs text-muted-foreground">
-                                    · {playerColor === "white" ? "White" : "Black"}
+                                    <ChevronFirst className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={goBackward}
+                                    disabled={currentPly === 0}
+                                    aria-label="Previous move"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <span className="text-xs text-muted-foreground font-mono w-16 text-center">
+                                    {currentPly} / {totalPlies}
                                 </span>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={goForward}
+                                    disabled={currentPly === totalPlies}
+                                    aria-label="Next move"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={goLast}
+                                    disabled={currentPly === totalPlies}
+                                    aria-label="Last move"
+                                >
+                                    <ChevronLast className="h-4 w-4" />
+                                </Button>
                             </div>
-
-                            {/* Portrait navigation row */}
-                            {isPortrait && (
-                                <div className="flex items-center gap-2 w-full justify-center">
-                                    {[
-                                        { label: "⏮", action: goFirst, disabled: currentPly === 0 },
-                                        { label: "‹", action: goBackward, disabled: currentPly === 0 },
-                                        { label: "›", action: goForward, disabled: currentPly === totalPlies },
-                                        { label: "⏭", action: goLast, disabled: currentPly === totalPlies },
-                                    ].map(({ label, action, disabled }) => (
-                                        <button
-                                            key={label}
-                                            onClick={action}
-                                            disabled={disabled}
-                                            className="h-8 px-3 rounded hover:bg-accent transition-colors
-                                 disabled:opacity-40 disabled:pointer-events-none
-                                 text-sm"
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
                         </div>
                     </Card>
 

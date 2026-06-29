@@ -8,7 +8,6 @@ import {
   ChevronRight,
   ArrowLeft,
   RotateCcw,
-  GripIcon,
   MessageSquare,
   MoreHorizontal,
   FlipHorizontal2,
@@ -25,6 +24,8 @@ import { toast } from "sonner";
 import { Chessboard } from "react-chessboard";
 import { BoardOverlay } from "@/components/chess/BoardOverlay";
 import { EvalBar } from "@/components/chess/EvalBar";
+import { ResizeHandle } from "@/components/chess/ResizeHandle";
+import { useResizableBoard } from "@/hooks/useResizableBoard";
 import { getGame } from "@/lib/supabase/games";
 import { saveAnnotations, getAnnotations } from "@/lib/supabase/annotations";
 import { AnalysisTree, type TreeNode } from "@/lib/chess/analysisEngine";
@@ -128,7 +129,6 @@ function AnalysisPage() {
   const [isPortrait, setIsPortrait] = useState(
     typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false,
   );
-  const [boardSize, setBoardSize] = useState(calcInitialBoardSize);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: TreeNode } | null>(null);
   const [commentModal, setCommentModal] = useState<{ node: TreeNode; text: string } | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string } | null>(null);
@@ -139,7 +139,6 @@ function AnalysisPage() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const boardCardRef = useRef<HTMLDivElement>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<AnalysisTree | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -147,7 +146,10 @@ function AnalysisPage() {
   const { boardThemeIndex } = useSettingsStore();
   const boardTheme = BOARD_THEMES[boardThemeIndex] ?? BOARD_THEMES[0];
 
-  const userResizedRef = useRef(false);
+  // ── Resizable board (shared hook — drag math + window-resize bookkeeping) ──
+  const { boardSize, boardCardRef, dragHandleProps } = useResizableBoard({
+    calcInitialSize: calcInitialBoardSize,
+  });
 
   const boardOrientation: "white" | "black" = flipped ? "black" : "white";
 
@@ -164,51 +166,10 @@ function AnalysisPage() {
 
   useEffect(() => {
     function onResize() {
-      const portrait = window.innerWidth < window.innerHeight;
-      setIsPortrait(portrait);
-      if (portrait) userResizedRef.current = false;
-      if (!userResizedRef.current) {
-        setBoardSize(calcInitialBoardSize());
-      }
+      setIsPortrait(window.innerWidth < window.innerHeight);
     }
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, []);
-  
-  // ── Drag-to-resize ─────────────────────────────────────────────────────────
-  const dragStartRef = useRef<{ x: number; y: number; size: number } | null>(null);
-
-  const onDragHandlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      dragStartRef.current = { x: e.clientX, y: e.clientY, size: boardSize };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    },
-    [boardSize],
-  );
-
-  const onDragHandlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragStartRef.current) return;
-    e.preventDefault();
-    const dx = e.clientX - dragStartRef.current.x;
-    const dy = e.clientY - dragStartRef.current.y;
-    const delta = (dx + dy) / 2;
-    const newRaw = dragStartRef.current.size + delta;
-    const card = boardCardRef.current;
-    let maxSize = 600;
-    if (card) {
-      const rect = card.getBoundingClientRect();
-      const maxW = rect.width - 32 - 8 - 24;
-      const maxH = rect.height - 52 - 24;
-      maxSize = Math.min(maxW, maxH, 600);
-    }
-    userResizedRef.current = true;
-    setBoardSize(Math.min(Math.max(newRaw, 180), maxSize));
-  }, []);
-
-  const onDragHandlePointerUp = useCallback(() => {
-    dragStartRef.current = null;
   }, []);
 
   useEffect(() => { treeRef.current = tree; }, [tree]);
@@ -571,17 +532,7 @@ function AnalysisPage() {
                   />
                   <BoardOverlay arrows={arrows} highlights={highlights} boardRef={boardContainerRef} />
                 </div>
-                {!isPortrait && (
-                  <div
-                    className="absolute bottom-0 right-0 z-20 w-6 h-6 flex items-center justify-center rounded-tl-md bg-background/80 border border-border/50 cursor-nwse-resize opacity-40 hover:opacity-100 transition-opacity touch-none select-none"
-                    onPointerDown={onDragHandlePointerDown}
-                    onPointerMove={onDragHandlePointerMove}
-                    onPointerUp={onDragHandlePointerUp}
-                    title="Drag to resize board"
-                  >
-                    <GripIcon className="w-3 h-3 text-muted-foreground" />
-                  </div>
-                )}
+                {!isPortrait && <ResizeHandle {...dragHandleProps} />}
               </div>
             </div>
 
