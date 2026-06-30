@@ -1,6 +1,6 @@
 // src/routes/_app/play.tsx
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import {
   Bot, User, Plus, ChevronLeft, ChevronRight, ChevronFirst, ChevronLast, MoreHorizontal,
   Undo2, Save, Flag, Lightbulb, Handshake, FlipHorizontal2, Check, GitBranch,
@@ -22,7 +22,7 @@ import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 import { useVoiceStore } from "@/stores/voiceStore";
 import { saveGame, updateGame, getGame } from "@/lib/supabase/games";
 import { PromotionPickerModal } from "@/components/chess/PromotionPickerModal";
-import { Chess } from "chess.js";
+import { Chess, type Square } from "chess.js";
 import {
   PERSONALITIES, ELO_VALUES, ELO_CONFIG, getPersonality, pickRandom,
   type PersonalityId, type AvatarState, type EloValue,
@@ -168,7 +168,7 @@ function PlayPage() {
     typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false,
   );
   const [flipped, setFlipped] = useState(false);
-  const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string } | null>(null);
+  const [pendingPromotion, setPendingPromotion] = useState<{ from: Square; to: Square } | null>(null);
   const [personalityVisible, setPersonalityVisible] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [gameOverLabel, setGameOverLabel] = useState("");
@@ -181,6 +181,11 @@ function PlayPage() {
   const [hintStage, setHintStage] = useState<0 | 1 | 2>(0);
   const [hintFrom, setHintFrom] = useState<string | null>(null);
   const [hintTo, setHintTo] = useState<string | null>(null);
+
+  // ── Click-to-move state ─────────────────────────────────────────────────
+  // Adapted from the Analysis page implementation. Same interaction model,
+  // same minimal state — just gated by Play's turn/engine/game-over rules.
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
 
   // ── Avatar state ─────────────────────────────────────────────────────────
   const [avatarState, setAvatarState] = useState<AvatarState>("idle");
@@ -311,24 +316,142 @@ function PlayPage() {
     loadCurrentUser();
   }, []);
 
-  // Keep the chessboard callback stable across unrelated page updates.
-  const handlePieceDrop = useCallback(
-    (args: any) => {
-      if (isComputerTurnRef.current || !args.targetSquare || !isAtLatestRef.current) return false;
+  // ── Universal move execution ────────────────────────────────────────────
+  // Called by drag (onPieceDrop) and click (handleSquareClick). Self-contained:
+  // builds its own throwaway Chess instance from fenRef.current rather than
+  // depending on any click-to-move UI state, so it carries no hidden coupling
+  // to the selection logic below. The existing `move()` from useChessGame
+  // remains the single source of truth for actually applying a move.
+  const executeMove = useCallback(
+    (from: Square, to: Square): boolean => {
+      if (isComputerTurnRef.current || !isAtLatestRef.current) return false;
       const chess = new Chess(fenRef.current);
-      const piece = chess.get(args.sourceSquare as Parameters<typeof chess.get>[0]);
+      const piece = chess.get(from);
       const isPromotion =
         piece?.type === "p" &&
-        ((piece.color === "w" && args.targetSquare[1] === "8") ||
-          (piece.color === "b" && args.targetSquare[1] === "1"));
+        ((piece.color === "w" && to[1] === "8") || (piece.color === "b" && to[1] === "1"));
       if (isPromotion) {
-        setPendingPromotion({ from: args.sourceSquare, to: args.targetSquare });
+        setPendingPromotion({ from, to });
         return false;
       }
-      return move(args.sourceSquare, args.targetSquare);
+      return move(from, to);
     },
     [move, setPendingPromotion],
   );
+
+  // Keep the chessboard drag callback stable across unrelated page updates.
+  const handlePieceDrop = useCallback(
+    (args: any) => {
+      if (!args.targetSquare) return false;
+      return executeMove(args.sourceSquare as Square, args.targetSquare as Square);
+    },
+    [executeMove],
+  );
+
+  // ── Click-to-move: read-only chess.js snapshot of the live game position ──
+  // Used ONLY for moves() / get() / turn() to drive selection UI. NEVER call
+  // .move() on this — it is kept deliberately separate from game state, and
+  // separate from executeMove's own throwaway instance.
+  const playChessReadOnly = useMemo(() => {
+    try {
+      return new Chess(fen);
+    } catch {
+      return null;
+    }
+  }, [fen]);
+
+  const canPlayerMove = gameStarted && !isGameOver && !isComputerTurn && isAtLatest;
+
+  const legalMoves = useMemo(() => {
+    if (!selectedSquare || !playChessReadOnly || !canPlayerMove) return [];
+    try {
+      return playChessReadOnly.moves({ square: selectedSquare, verbose: true });
+    } catch {
+      return [];
+    }
+  }, [selectedSquare, playChessReadOnly, canPlayerMove]);
+
+  const legalTargets = useMemo(() => new Set(legalMoves.map((m) => m.to)), [legalMoves]);
+
+  // Clear selection on any condition where interaction should no longer be
+  // active, or where the underlying position changed externally: a successful
+  // move, an engine move, promotion completion, game over, loading/restarting
+  // a game, or navigating away from the latest position.
+  useEffect(() => {
+    setSelectedSquare(null);
+  }, [fen]);
+
+  useEffect(() => {
+    if (!canPlayerMove) setSelectedSquare(null);
+  }, [canPlayerMove]);
+
+  // ── Click-to-move: select / switch / execute / cancel ─────────────────────
+  function handleSquareClick(square: Square) {
+    if (!playChessReadOnly || !canPlayerMove) return;
+    const piece = playChessReadOnly.get(square);
+    const sideToMove = playChessReadOnly.turn();
+    const isOwnMovablePiece = !!piece && piece.color === sideToMove && piece.color === playerColor;
+
+    // Nothing selected yet — select if it's the human player's own piece.
+    if (!selectedSquare) {
+      if (isOwnMovablePiece) setSelectedSquare(square);
+      return;
+    }
+
+    // Clicking the selected square again — cancel.
+    if (square === selectedSquare) {
+      setSelectedSquare(null);
+      return;
+    }
+
+    // Clicking a legal destination — execute via the shared move pipeline.
+    if (legalTargets.has(square)) {
+      executeMove(selectedSquare, square);
+      setSelectedSquare(null);
+      return;
+    }
+
+    // Clicking another of the player's own pieces — switch selection.
+    if (isOwnMovablePiece) {
+      setSelectedSquare(square);
+      return;
+    }
+
+    // Anything else (illegal square) — cancel.
+    setSelectedSquare(null);
+  }
+
+  // ── Click-to-move: square styling (selection highlight + dots/rings) ──────
+  // Same visual treatment as Analysis — sizes/colors tunable via CSS vars:
+  //   --move-select-color, --move-select-ring,
+  //   --move-indicator-color, --move-dot-radius, --move-ring-radius
+  const clickToMoveSquareStyles = useMemo(() => {
+    const styles: Record<string, React.CSSProperties> = {};
+
+    if (selectedSquare) {
+      styles[selectedSquare] = {
+        ...(styles[selectedSquare] ?? {}),
+        backgroundColor: "var(--move-select-color, rgba(255, 235, 59, 0.45))",
+        boxShadow: "inset 0 0 0 2px var(--move-select-ring, rgba(255, 235, 59, 0.7))",
+      };
+    }
+
+    for (const mv of legalMoves) {
+      const isCapture = !!mv.captured || mv.flags?.includes("e");
+      styles[mv.to] = {
+        ...(styles[mv.to] ?? {}),
+        backgroundImage: isCapture
+          ? "radial-gradient(circle, transparent calc(var(--move-ring-radius, 56%) - 1%), var(--move-indicator-color, rgba(0,0,0,0.25)) var(--move-ring-radius, 56%), var(--move-indicator-color, rgba(0,0,0,0.25)) calc(var(--move-ring-radius, 56%) + 8%), transparent calc(var(--move-ring-radius, 56%) + 9%))"
+          : "radial-gradient(circle, var(--move-indicator-color, rgba(0,0,0,0.25)) var(--move-dot-radius, 17%), transparent calc(var(--move-dot-radius, 17%) + 1%))",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "100% 100%",
+        cursor: "pointer",
+      };
+    }
+
+    return styles;
+  }, [selectedSquare, legalMoves]);
 
   const elo = ELO_VALUES[eloIndex] as EloValue;
   const eloConfig = ELO_CONFIG[elo];
@@ -1084,6 +1207,8 @@ function PlayPage() {
                       position: displayFen,
                       boardOrientation,
                       onPieceDrop: handlePieceDrop,
+                      onSquareClick: (args) => handleSquareClick(args.square as Square),
+                      squareStyles: clickToMoveSquareStyles,
                       boardStyle: { borderRadius: 6, overflow: "hidden" },
                       darkSquareStyle: { backgroundColor: boardTheme.dark },
                       lightSquareStyle: { backgroundColor: boardTheme.light },

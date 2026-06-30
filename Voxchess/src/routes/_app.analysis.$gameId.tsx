@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState, useCallback, Fragment } from "react";
-import { Chess } from "chess.js";
+import { useEffect, useRef, useState, useCallback, useMemo, Fragment } from "react";
+import { Chess, Square } from "chess.js";
 import {
   ChevronFirst,
   ChevronLast,
@@ -138,6 +138,9 @@ function AnalysisPage() {
   const [engineVisible, setEngineVisible] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // ── Click-to-move state ─────────────────────────────────────────────────────
+  const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const treeRef = useRef<AnalysisTree | null>(null);
@@ -210,6 +213,43 @@ function AnalysisPage() {
       setHighlights(currentNode.highlights);
     }
   }, [currentNode, evaluate]);
+
+  // ── Click-to-move: read-only chess.js snapshot of the current position ─────
+  // Used ONLY for moves() / get() / turn() to drive UI (selection, legal-move
+  // dots/rings). NEVER call analysisChess.move(...) — the move tree
+  // (treeRef.current) is the single source of truth. Mutating this snapshot
+  // would silently desync the UI from the real game state.
+  const analysisChess = useMemo(() => {
+    if (!currentNode) return null;
+    try {
+      return new Chess(currentNode.fen);
+    } catch {
+      return null;
+    }
+  }, [currentNode]);
+
+  // Legal destinations for the currently selected square, derived live from
+  // chess.js rather than maintained as duplicate board state.
+  const legalMoves = useMemo(() => {
+    if (!selectedSquare || !analysisChess) return [];
+    try {
+      return analysisChess.moves({
+        square: selectedSquare as Parameters<typeof analysisChess.moves>[0]["square"],
+        verbose: true,
+      });
+    } catch {
+      return [];
+    }
+  }, [selectedSquare, analysisChess]);
+
+  const legalTargets = useMemo(() => new Set(legalMoves.map((m) => m.to)), [legalMoves]);
+
+  // Clear selection on ANY external position change — undo, redo, tree
+  // navigation, PGN import, successful move, loading another study. One
+  // effect covers every case because they all funnel through currentNode.fen.
+  useEffect(() => {
+    setSelectedSquare(null);
+  }, [currentNode?.fen]);
 
   const goToNode = useCallback((node: TreeNode) => {
     if (!treeRef.current) return;
@@ -321,7 +361,14 @@ function AnalysisPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [prev, next, activateVoice]);
 
-  function handlePieceDrop(from: string, to: string): boolean {
+  // ── Universal move execution ────────────────────────────────────────────────
+  // Called by drag (onPieceDrop) and click (handleSquareClick) today; designed
+  // to also be callable from voice, keyboard, or any future input method.
+  // Deliberately self-contained: builds its own throwaway Chess instance from
+  // currentNode.fen rather than depending on the UI-scoped `analysisChess`, so
+  // it carries no hidden coupling to the Analysis page's click-to-move state.
+  // AnalysisTree (via treeRef) remains the single source of truth for the move.
+  function executeMove(from: string, to: string): boolean {
     if (!treeRef.current || !currentNode) return false;
     const chess = new Chess(currentNode.fen);
     const piece = chess.get(from as Parameters<typeof chess.get>[0]);
@@ -345,6 +392,74 @@ function AnalysisPage() {
     setRevision((r) => r + 1);
     setCurrentNode({ ...node });
   }
+
+  // ── Click-to-move: select / switch / execute / cancel ───────────────────────
+  function handleSquareClick(square: Square) {
+    if (!analysisChess) return;
+    const piece = analysisChess.get(square as Parameters<typeof analysisChess.get>[0]);
+    const sideToMove = analysisChess.turn();
+
+    // Nothing selected yet — select if it's a movable piece for the side to move.
+    if (!selectedSquare) {
+      if (piece && piece.color === sideToMove) setSelectedSquare(square);
+      return;
+    }
+
+    // Clicking the selected square again — cancel.
+    if (square === selectedSquare) {
+      setSelectedSquare(null);
+      return;
+    }
+
+    // Clicking a legal destination — execute via the shared move pipeline.
+    if (legalTargets.has(square)) {
+      executeMove(selectedSquare, square);
+      setSelectedSquare(null);
+      return;
+    }
+
+    // Clicking another friendly piece — switch selection.
+    if (piece && piece.color === sideToMove) {
+      setSelectedSquare(square);
+      return;
+    }
+
+    // Anything else (illegal square) — cancel.
+    setSelectedSquare(null);
+  }
+
+  // ── Click-to-move: square styling (selection highlight + dots/rings) ───────
+  // Sizes/colors are exposed as CSS custom properties so they can be tuned in
+  // a stylesheet later without touching this code:
+  //   --move-select-color, --move-select-ring,
+  //   --move-indicator-color, --move-dot-radius, --move-ring-radius
+  const clickToMoveSquareStyles = useMemo(() => {
+    const styles: Record<string, React.CSSProperties> = {};
+
+    if (selectedSquare) {
+      styles[selectedSquare] = {
+        ...(styles[selectedSquare] ?? {}),
+        backgroundColor: "var(--move-select-color, rgba(255, 235, 59, 0.45))",
+        boxShadow: "inset 0 0 0 2px var(--move-select-ring, rgba(255, 235, 59, 0.7))",
+      };
+    }
+
+    for (const move of legalMoves) {
+      const isCapture = !!move.captured || move.flags?.includes("e");
+      styles[move.to] = {
+        ...(styles[move.to] ?? {}),
+        backgroundImage: isCapture
+          ? "radial-gradient(circle, transparent calc(var(--move-ring-radius, 56%) - 1%), var(--move-indicator-color, rgba(0,0,0,0.25)) var(--move-ring-radius, 56%), var(--move-indicator-color, rgba(0,0,0,0.25)) calc(var(--move-ring-radius, 56%) + 8%), transparent calc(var(--move-ring-radius, 56%) + 9%))"
+          : "radial-gradient(circle, var(--move-indicator-color, rgba(0,0,0,0.25)) var(--move-dot-radius, 17%), transparent calc(var(--move-dot-radius, 17%) + 1%))",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "100% 100%",
+        cursor: "pointer",
+      };
+    }
+
+    return styles;
+  }, [selectedSquare, legalMoves]);
 
   function handleSquareRightClick(square: string) { setRightClickFrom(square); }
 
@@ -522,8 +637,10 @@ function AnalysisPage() {
                       boardOrientation,
                       onPieceDrop: (args) => {
                         if (!args.targetSquare) return false;
-                        return handlePieceDrop(args.sourceSquare, args.targetSquare);
+                        return executeMove(args.sourceSquare, args.targetSquare);
                       },
+                      onSquareClick: (args) => handleSquareClick(args.square as Square),
+                      squareStyles: clickToMoveSquareStyles,
                       onSquareRightClick: (args) => handleSquareRightClick(args.square),
                       boardStyle: { borderRadius: 6, overflow: "hidden" },
                       darkSquareStyle: { backgroundColor: boardTheme.dark },
