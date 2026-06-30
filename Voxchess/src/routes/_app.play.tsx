@@ -548,6 +548,9 @@ function PlayPage() {
     setGameOverLabel(getGameOverLabel(game));
     setOverOpen(true);
     const result = getGameResult(game);
+    void saveCurrentGame(result).catch(() => {
+      toast.error("Could not save game");
+    });
     const playerWon = result === (playerColor === "w" ? "white" : "black");
     if (playerWon) {
       const text = pickRandom(currentPersonality.responses.lose);
@@ -1016,10 +1019,12 @@ function PlayPage() {
                       <MenuItem label="Add To Analysis" icon={GitBranch}
                         onClick={() => { handleAddToAnalysis(); setMenuOpen(false); }} />
                       <MenuItem label="Save As Game" icon={Save}
+                        disabled={gameEnded}
                         onClick={() => { handleSave(); setMenuOpen(false); }} />
                     </>
                   ) : (
                     <MenuItem label="Save" icon={Save}
+                      disabled={gameEnded}
                       onClick={() => { handleSave(); setMenuOpen(false); }} />
                   )}
 
