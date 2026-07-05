@@ -77,15 +77,15 @@ export const REVIEW_CONFIG = {
   },
 
   // estimatePerformance() blends the raw table-lookup rating toward the
-  // table's OWN value at this anchor accuracy for short games, so "3
-  // perfect moves" doesn't report the same extreme rating as "80 perfect
-  // moves". Set to an EXACT point already in PERFORMANCE_TABLE (69 -> 1500)
-  // rather than an interpolated value, so the anchor itself is a visible,
-  // deliberate design choice and not an incidental side-effect of
-  // interpolation. Confidence reaches 1.0 (no blending) once moveCount hits
-  // performanceConfidenceMoves.
-  performanceAnchorAccuracy: 69,
-  performanceConfidenceMoves: 30,
+// table's OWN value at this anchor accuracy for short games, so "3
+// perfect moves" doesn't report the same extreme rating as "80 perfect
+// moves". Set to an EXACT point already in PERFORMANCE_TABLE (74 -> 1500)
+// rather than an interpolated value, so the anchor itself is a visible,
+// deliberate design choice and not an incidental side-effect of
+// interpolation. Confidence reaches 1.0 (no blending) once moveCount hits
+// performanceConfidenceMoves.
+performanceAnchorAccuracy: 74,
+performanceConfidenceMoves: 30,
 
   // Game-level accuracy is NOT a simple average of move accuracies. This is
   // a faithful port of lila's published algorithm (verified against actual

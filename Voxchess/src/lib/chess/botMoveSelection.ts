@@ -87,3 +87,67 @@ export function selectMoveByQuality(
   const desired = rollQuality(qualityWeights);
   return resolveUpwardFallback(classified, desired);
 }
+
+// --- Survival pipeline (losing positions) ---
+//
+// Sibling to the quality pipeline, not a modification of it. Triggered
+// when the win% sigmoid saturates in bad positions and can no longer
+// distinguish sensible defense from collapse among candidates. Operates
+// on raw score, not win%, for that reason. No lazy expansion — the
+// initial 3-PV pool is all it ever uses.
+
+export type BotStrengthMode = "quality" | "survival";
+
+// Hysteresis band — intentionally not per-tier. Prevents mode flicker
+// when win% oscillates near a single cutoff (e.g. 21% → 19% → 22%).
+export const SURVIVAL_ENTER_THRESHOLD = 20;
+export const SURVIVAL_EXIT_THRESHOLD = 25;
+
+/**
+ * Win% of the best (PV1) candidate, mover's perspective. Exposed
+ * separately from classifyCandidates so callers can decide mode BEFORE
+ * classifying.
+ */
+export function computeBestWinPercent(candidates: readonly PvCandidate[]): number {
+  if (candidates.length === 0) return 50;
+  return evalToWinPercent(candidates[0].score, candidates[0].mate);
+}
+
+/**
+ * Pure state-transition function for the hysteresis state machine. Caller
+ * owns persisting `prevMode` — tracked in useBotMove's modeRef, seeded on
+ * the first decision of a session rather than reset via a mode-specific
+ * API (see resetBotSession in useBotMove.ts).
+ */
+export function nextBotStrengthMode(
+  prevMode: BotStrengthMode,
+  bestWinPercent: number,
+): BotStrengthMode {
+  if (prevMode === "quality") {
+    return bestWinPercent < SURVIVAL_ENTER_THRESHOLD ? "survival" : "quality";
+  }
+  return bestWinPercent > SURVIVAL_EXIT_THRESHOLD ? "quality" : "survival";
+}
+
+function effectiveScore(pv: PvCandidate): number {
+  if (pv.mate == null) return pv.score;
+  return pv.mate > 0 ? 100_000 - pv.mate : -100_000 - pv.mate;
+}
+
+/**
+ * Every PV within `cpTolerance` centipawns of PV1, straight from the
+ * initial MultiPV search — no roll, no expansion.
+ */
+export function buildCpTolerancePool(
+  candidates: readonly PvCandidate[],
+  cpTolerance: number,
+): PvCandidate[] {
+  if (candidates.length === 0) return [];
+  const bestScore = effectiveScore(candidates[0]);
+  return candidates.filter((c) => bestScore - effectiveScore(c) <= cpTolerance);
+}
+
+export function pickFromCpPool(pool: readonly PvCandidate[]): PvCandidate {
+  if (pool.length === 0) throw new Error("pickFromCpPool: empty pool");
+  return pool[Math.floor(Math.random() * pool.length)];
+}

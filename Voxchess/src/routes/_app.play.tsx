@@ -577,6 +577,7 @@ function PlayPage() {
     setAvatarState("idle");
     setAvatarText("");
     cancelPendingMove();
+    resetBotSession();
 
     if (avatarTimeoutRef.current) {
       clearTimeout(avatarTimeoutRef.current);
@@ -595,26 +596,25 @@ function PlayPage() {
     const promotion = uciMove.slice(4) || undefined;
     move(from, to, promotion as "q" | "r" | "b" | "n" | undefined);
     speakAvatar(pickRandom(currentPersonality.responses.moveQuips));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [move, currentPersonality]);
 
-  const { requestBotMove, cancelPendingMove, thinking: computerThinking, evaluation, evaluate } =
+  const { requestBotMove, cancelPendingMove, resetBotSession, thinking: computerThinking, evaluation, evaluate } =
     useBotMove(handleBotMoveReady);
 
   // ── Computer turn ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isComputerTurn || computerThinking) return;
     setAvatarState("thinking");
-    requestBotMove(fen, eloConfig);
+    requestBotMove({ fen, elo, config: eloConfig });
 
-    // Recovery: if engine gives no result within 12s, unblock
     const recovery = setTimeout(() => {
       cancelPendingMove();
       setAvatarState("idle");
     }, 12000);
 
     return () => clearTimeout(recovery);
-  }, [isComputerTurn, fen, eloConfig, requestBotMove, cancelPendingMove, computerThinking]);
+  }, [isComputerTurn, fen, elo, eloConfig, requestBotMove, cancelPendingMove, computerThinking]);
 
   useEffect(() => {
     if (!hintPendingRef.current || !evaluation?.bestMoves[0]) return;

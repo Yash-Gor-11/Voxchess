@@ -1471,13 +1471,13 @@ export function pickRandom<T>(arr: T[]): T {
 // ELO → Stockfish config
 export const ELO_VALUES: EloValue[] = [
   300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300,
-  1500, 1600, 1700, 1800, 1900,
+  1400, 1500, 1600, 1700, 1800, 1900,
   2000, 2100, 2200, 2300, 2400, 2500,
   2600, 2700, 2800, 2900, 3000,
 ];
 export type EloValue =
   | 300 | 400 | 500 | 600 | 700 | 800 | 900 | 1000 | 1100 | 1200 | 1300
-  | 1500 | 1600 | 1700 | 1800 | 1900
+  | 1400 | 1500 | 1600 | 1700 | 1800 | 1900
   | 2000 | 2100 | 2200 | 2300 | 2400 | 2500
   | 2600 | 2700 | 2800 | 2900 | 3000;
 
@@ -1522,65 +1522,133 @@ export interface EloConfig {
    * tiers (no qualityWeights) always just play PV1 and ignore this field.
    */
   bookPlyLimit?: number;
+  /**
+   * Centipawn tolerance for the survival pipeline (see botMoveSelection.ts:
+   * buildCpTolerancePool), used only once bestWinPercent drops below the
+   * survival-mode entry threshold. Every candidate within this many cp of
+   * PV1 becomes eligible for random selection, replacing the quality-roll
+   * entirely for the duration of the losing streak.
+   *
+   * First-pass values, fit to a curve steeper than linear (tolerance
+   * collapses faster than rating rises) to reflect online rapid/blitz
+   * play rather than FIDE classical — not yet tuned via playtesting.
+   * Omitted at 3000 since that tier has no qualityWeights and never
+   * reaches the survival pipeline at all.
+   */
+  cpTolerance?: number;
 }
 
 export const ELO_CONFIG: Record<EloValue, EloConfig> = {
-  300: { label: "Beginner", depth: 1, skillLevel: 0, bookPlyLimit: 2,
-    qualityWeights: { best: 5, excellent: 7, good: 10, inaccuracy: 20, mistake: 30, blunder: 28 } },
-  400: { label: "Beginner", depth: 1, skillLevel: 1, bookPlyLimit: 2,
-    qualityWeights: { best: 6, excellent: 8, good: 11, inaccuracy: 21, mistake: 28, blunder: 26 } },
-  500: { label: "Beginner", depth: 1, skillLevel: 2, bookPlyLimit: 3,
-    qualityWeights: { best: 8, excellent: 10, good: 13, inaccuracy: 22, mistake: 26, blunder: 21 } },
-  600: { label: "Casual", depth: 2, skillLevel: 3, bookPlyLimit: 3,
-    qualityWeights: { best: 10, excellent: 12, good: 14, inaccuracy: 22, mistake: 24, blunder: 18 } },
-  700: { label: "Casual", depth: 2, skillLevel: 4, bookPlyLimit: 4,
-    qualityWeights: { best: 13, excellent: 14, good: 16, inaccuracy: 21, mistake: 22, blunder: 14 } },
-  800: { label: "Casual", depth: 3, skillLevel: 5, bookPlyLimit: 5,
-    qualityWeights: { best: 17, excellent: 16, good: 17, inaccuracy: 21, mistake: 19, blunder: 10 } },
-  900: { label: "Intermediate", depth: 3, skillLevel: 6, bookPlyLimit: 6,
-    qualityWeights: { best: 22, excellent: 19, good: 18, inaccuracy: 20, mistake: 15, blunder: 6 } },
-  1000: { label: "Intermediate", depth: 4, skillLevel: 8, bookPlyLimit: 6,
-    qualityWeights: { best: 28, excellent: 22, good: 19, inaccuracy: 17, mistake: 10, blunder: 4 } },
-  1100: { label: "Intermediate", depth: 5, skillLevel: 10, bookPlyLimit: 8,
-    qualityWeights: { best: 33, excellent: 23, good: 18, inaccuracy: 14, mistake: 8, blunder: 4 } },
-  1200: { label: "Club", depth: 6, skillLevel: 12, bookPlyLimit: 8,
-    qualityWeights: { best: 38, excellent: 23, good: 17, inaccuracy: 12, mistake: 7, blunder: 3 } },
-  1300: { label: "Club", depth: 7, skillLevel: 14, bookPlyLimit: 10,
-    qualityWeights: { best: 43, excellent: 23, good: 16, inaccuracy: 10, mistake: 6, blunder: 2 } },
-  1500: { label: "Club Player", uciElo: 1500, movetime: 1000, bookPlyLimit: 12,
-    qualityWeights: { best: 50, excellent: 23, good: 14, inaccuracy: 8, mistake: 4, blunder: 1 } },
-  1600: { label: "Club Player", uciElo: 1600, movetime: 1200, bookPlyLimit: 14,
-    qualityWeights: { best: 53, excellent: 23, good: 13, inaccuracy: 7, mistake: 3, blunder: 1 } },
-  1700: { label: "Club Player", uciElo: 1700, movetime: 1400, bookPlyLimit: 16,
-    qualityWeights: { best: 56, excellent: 22, good: 12, inaccuracy: 6.5, mistake: 2.5, blunder: 1 } },
-  1800: { label: "Advanced", uciElo: 1800, movetime: 1600, bookPlyLimit: 18,
-    qualityWeights: { best: 59, excellent: 22, good: 11, inaccuracy: 5.5, mistake: 2, blunder: 0.5 } },
-  1900: { label: "Advanced", uciElo: 1900, movetime: 1800, bookPlyLimit: 20,
-    qualityWeights: { best: 61, excellent: 22, good: 10, inaccuracy: 5, mistake: 1.5, blunder: 0.5 } },
-  2000: { label: "Expert", uciElo: 2000, movetime: 2000, bookPlyLimit: 22,
-    qualityWeights: { best: 63, excellent: 21, good: 9, inaccuracy: 4.5, mistake: 1.5, blunder: 1 } },
-  2100: { label: "Expert", uciElo: 2100, movetime: 2200, bookPlyLimit: 24,
-    qualityWeights: { best: 66, excellent: 20, good: 8, inaccuracy: 4, mistake: 1.5, blunder: 0.5 } },
-  2200: { label: "Expert", uciElo: 2200, movetime: 2500, bookPlyLimit: 26,
-    qualityWeights: { best: 69, excellent: 18, good: 8, inaccuracy: 3, mistake: 1.5, blunder: 0.5 } },
-  2300: { label: "Candidate Master", uciElo: 2300, movetime: 2800, bookPlyLimit: 30,
-    qualityWeights: { best: 72, excellent: 17, good: 7, inaccuracy: 2.5, mistake: 1, blunder: 0.5 } },
-  2400: { label: "Candidate Master", uciElo: 2400, movetime: 3200, bookPlyLimit: 34,
-    qualityWeights: { best: 75, excellent: 15, good: 6, inaccuracy: 2.5, mistake: 1, blunder: 0.5 } },
-  2500: { label: "Master", uciElo: 2500, movetime: 3600, bookPlyLimit: 40,
-    qualityWeights: { best: 78, excellent: 13, good: 5.5, inaccuracy: 2, mistake: 1, blunder: 0.5 } },
-  2600: { label: "Master", uciElo: 2600, movetime: 4200, bookPlyLimit: 50,
-    qualityWeights: { best: 81, excellent: 11, good: 5, inaccuracy: 1.8, mistake: 0.8, blunder: 0.4 } },
-  2700: { label: "Grandmaster", uciElo: 2700, movetime: 5000, bookPlyLimit: 60,
-    qualityWeights: { best: 84, excellent: 10, good: 4, inaccuracy: 1.2, mistake: 0.5, blunder: 0.3 } },
-  2800: { label: "Grandmaster", uciElo: 2800, movetime: 6000, bookPlyLimit: 80,
-    qualityWeights: { best: 87, excellent: 8, good: 3, inaccuracy: 1.2, mistake: 0.5, blunder: 0.3 } },
-  2900: { label: "Super GM", uciElo: 2900, movetime: 7000, bookPlyLimit: Infinity,
-    qualityWeights: { best: 91, excellent: 6, good: 2, inaccuracy: 0.7, mistake: 0.2, blunder: 0.1 } },
+  300: {
+    label: "Beginner", depth: 2, skillLevel: 0, bookPlyLimit: 2, cpTolerance: 150,
+    qualityWeights: { best: 5, excellent: 7, good: 10, inaccuracy: 20, mistake: 30, blunder: 28 }
+  },
+  400: {
+    label: "Beginner", depth: 2, skillLevel: 1, bookPlyLimit: 2, cpTolerance: 142,
+    qualityWeights: { best: 6, excellent: 8, good: 11, inaccuracy: 21, mistake: 28, blunder: 26 }
+  },
+  500: {
+    label: "Beginner", depth: 2, skillLevel: 2, bookPlyLimit: 3, cpTolerance: 133,
+    qualityWeights: { best: 8, excellent: 10, good: 13, inaccuracy: 22, mistake: 26, blunder: 21 }
+  },
+  600: {
+    label: "Casual", depth: 3, skillLevel: 3, bookPlyLimit: 3, cpTolerance: 125,
+    qualityWeights: { best: 10, excellent: 12, good: 14, inaccuracy: 22, mistake: 24, blunder: 18 }
+  },
+  700: {
+    label: "Casual", depth: 3, skillLevel: 4, bookPlyLimit: 4, cpTolerance: 117,
+    qualityWeights: { best: 13, excellent: 14, good: 16, inaccuracy: 21, mistake: 22, blunder: 14 }
+  },
+  800: {
+    label: "Casual", depth: 4, skillLevel: 5, bookPlyLimit: 5, cpTolerance: 109,
+    qualityWeights: { best: 17, excellent: 16, good: 17, inaccuracy: 21, mistake: 19, blunder: 10 }
+  },
+  900: {
+    label: "Intermediate", depth: 4, skillLevel: 6, bookPlyLimit: 6, cpTolerance: 102,
+    qualityWeights: { best: 22, excellent: 19, good: 18, inaccuracy: 20, mistake: 15, blunder: 6 }
+  },
+  1000: {
+    label: "Intermediate", depth: 5, skillLevel: 8, bookPlyLimit: 6, cpTolerance: 94,
+    qualityWeights: { best: 28, excellent: 22, good: 19, inaccuracy: 17, mistake: 10, blunder: 4 }
+  },
+  1100: {
+    label: "Intermediate", depth: 6, skillLevel: 10, bookPlyLimit: 8, cpTolerance: 87,
+    qualityWeights: { best: 33, excellent: 23, good: 18, inaccuracy: 14, mistake: 8, blunder: 4 }
+  },
+  1200: {
+    label: "Club", depth: 6, skillLevel: 12, bookPlyLimit: 8, cpTolerance: 80,
+    qualityWeights: { best: 38, excellent: 23, good: 17, inaccuracy: 12, mistake: 7, blunder: 3 }
+  },
+  1300: {
+    label: "Club", depth: 7, skillLevel: 14, bookPlyLimit: 10, cpTolerance: 73,
+    qualityWeights: { best: 43, excellent: 23, good: 16, inaccuracy: 10, mistake: 6, blunder: 2 }
+  },
+  1400: {
+    label: "Club Player", uciElo: 1400, movetime: 800, bookPlyLimit: 11, cpTolerance: 67,
+    qualityWeights: { best: 46.5, excellent: 23, good: 15, inaccuracy: 9, mistake: 5, blunder: 1.5 }
+  },
+  1500: {
+    label: "Club Player", uciElo: 1500, movetime: 1000, bookPlyLimit: 12, cpTolerance: 60,
+    qualityWeights: { best: 50, excellent: 23, good: 14, inaccuracy: 8, mistake: 4, blunder: 1 }
+  },
+  1600: {
+    label: "Club Player", uciElo: 1600, movetime: 1200, bookPlyLimit: 14, cpTolerance: 54,
+    qualityWeights: { best: 53, excellent: 23, good: 13, inaccuracy: 7, mistake: 3, blunder: 1 }
+  },
+  1700: {
+    label: "Club Player", uciElo: 1700, movetime: 1400, bookPlyLimit: 16, cpTolerance: 48,
+    qualityWeights: { best: 56, excellent: 22, good: 12, inaccuracy: 6.5, mistake: 2.5, blunder: 1 }
+  },
+  1800: {
+    label: "Advanced", uciElo: 1800, movetime: 1600, bookPlyLimit: 18, cpTolerance: 43,
+    qualityWeights: { best: 59, excellent: 22, good: 11, inaccuracy: 5.5, mistake: 2, blunder: 0.5 }
+  },
+  1900: {
+    label: "Advanced", uciElo: 1900, movetime: 1800, bookPlyLimit: 20, cpTolerance: 37,
+    qualityWeights: { best: 61, excellent: 22, good: 10, inaccuracy: 5, mistake: 1.5, blunder: 0.5 }
+  },
+  2000: {
+    label: "Expert", uciElo: 2000, movetime: 2000, bookPlyLimit: 22, cpTolerance: 32,
+    qualityWeights: { best: 63, excellent: 21, good: 9, inaccuracy: 4.5, mistake: 1.5, blunder: 1 }
+  },
+  2100: {
+    label: "Expert", uciElo: 2100, movetime: 2200, bookPlyLimit: 24, cpTolerance: 27,
+    qualityWeights: { best: 66, excellent: 20, good: 8, inaccuracy: 4, mistake: 1.5, blunder: 0.5 }
+  },
+  2200: {
+    label: "Expert", uciElo: 2200, movetime: 2500, bookPlyLimit: 26, cpTolerance: 23,
+    qualityWeights: { best: 69, excellent: 18, good: 8, inaccuracy: 3, mistake: 1.5, blunder: 0.5 }
+  },
+  2300: {
+    label: "Candidate Master", uciElo: 2300, movetime: 2800, bookPlyLimit: 30, cpTolerance: 18,
+    qualityWeights: { best: 72, excellent: 17, good: 7, inaccuracy: 2.5, mistake: 1, blunder: 0.5 }
+  },
+  2400: {
+    label: "Candidate Master", uciElo: 2400, movetime: 3200, bookPlyLimit: 34, cpTolerance: 15,
+    qualityWeights: { best: 75, excellent: 15, good: 6, inaccuracy: 2.5, mistake: 1, blunder: 0.5 }
+  },
+  2500: {
+    label: "Master", uciElo: 2500, movetime: 3600, bookPlyLimit: 40, cpTolerance: 11,
+    qualityWeights: { best: 78, excellent: 13, good: 5.5, inaccuracy: 2, mistake: 1, blunder: 0.5 }
+  },
+  2600: {
+    label: "Master", uciElo: 2600, movetime: 4200, bookPlyLimit: 50, cpTolerance: 8,
+    qualityWeights: { best: 81, excellent: 11, good: 5, inaccuracy: 1.8, mistake: 0.8, blunder: 0.4 }
+  },
+  2700: {
+    label: "Grandmaster", uciElo: 2700, movetime: 5000, bookPlyLimit: 60, cpTolerance: 5,
+    qualityWeights: { best: 84, excellent: 10, good: 4, inaccuracy: 1.2, mistake: 0.5, blunder: 0.3 }
+  },
+  2800: {
+    label: "Grandmaster", uciElo: 2800, movetime: 6000, bookPlyLimit: 80, cpTolerance: 3,
+    qualityWeights: { best: 87, excellent: 8, good: 3, inaccuracy: 1.2, mistake: 0.5, blunder: 0.3 }
+  },
+  2900: {
+    label: "Super GM", uciElo: 2900, movetime: 7000, bookPlyLimit: Infinity, cpTolerance: 1,
+    qualityWeights: { best: 91, excellent: 6, good: 2, inaccuracy: 0.7, mistake: 0.2, blunder: 0.1 }
+  },
   3000: { label: "Stockfish", uciElo: 3000, movetime: 9000, bookPlyLimit: Infinity },
-  // 3000 tier: no qualityWeights — always PV1, full strength. bookPlyLimit
-  // has no effect here since the book-scoping branch in useBotMove.ts is
-  // only reached when qualityWeights is present.
+  // 3000: no qualityWeights, no cpTolerance — always PV1, full strength.
 };
 
 export function getEloLabel(elo: EloValue): string {

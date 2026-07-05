@@ -1,10 +1,11 @@
 // src/hooks/useBotMove.ts
 //
-// Bot move orchestrator — owns the lazy MultiPV expansion sequence (3→8)
-// AND the opening-book short-circuit, so play.tsx doesn't need to manage
-// any of that itself. Also exposes the raw evaluate()/evaluation
-// passthrough from useStockfish so existing hint-system code in play.tsx
-// keeps working unchanged.
+// Bot move orchestrator — owns the lazy MultiPV expansion sequence (3→8),
+// the opening-book short-circuit, AND the survival-mode hybrid pipeline
+// for losing positions, so play.tsx doesn't need to manage any of that
+// itself. Also exposes the raw evaluate()/evaluation passthrough from
+// useStockfish so existing hint-system code in play.tsx keeps working
+// unchanged.
 //
 // Opening book integration:
 //   - bookMoves(fen) (openings.ts) returns every legal move from the
@@ -21,6 +22,25 @@
 //   - The book set is computed once per requestBotMove call (not per
 //     phase), since it depends only on the starting fen for that move, not
 //     on which MultiPV width Stockfish happens to be searching at.
+//
+// Survival pipeline (hybrid losing-position mode):
+//   - The quality-weighted model (win% based) saturates once a position
+//     is badly lost — large centipawn differences between candidates
+//     collapse into tiny win% differences, so it can no longer tell
+//     sensible defense from outright collapse.
+//   - Once bestWinPercent drops below SURVIVAL_ENTER_THRESHOLD, the bot
+//     switches to picking randomly among every candidate within
+//     config.cpTolerance centipawns of PV1 — no quality roll, no lazy
+//     expansion, just the initial 3-PV pool.
+//   - A hysteresis band (enter <20%, exit >25%) prevents the mode from
+//     flickering move-to-move when win% oscillates near a single cutoff.
+//   - Mode state (modeRef) and the "is this the first decision of the
+//     session" flag (firstDecisionRef) are internal to this hook and are
+//     NOT reset via FEN/ply inference — the app calls resetBotSession()
+//     explicitly whenever a new bot session begins (new game, loaded
+//     game, continue-from-position, imported PGN/FEN). Undo does NOT
+//     call this, since undo revisits the same session/position rather
+//     than starting a new one.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Chess } from "chess.js";
@@ -30,10 +50,16 @@ import {
   pickExactQuality,
   resolveUpwardFallback,
   rollQuality,
+  computeBestWinPercent,
+  nextBotStrengthMode,
+  buildCpTolerancePool,
+  pickFromCpPool,
+  SURVIVAL_ENTER_THRESHOLD,
   INITIAL_MULTI_PV,
   EXPANDED_MULTI_PV,
   type PvCandidate,
   type ClassifiedCandidate,
+  type BotStrengthMode,
 } from "@/lib/chess/botMoveSelection";
 import { bookMoves } from "@/lib/chess/openings";
 import type { EloConfig } from "@/lib/chess/personalities";
@@ -42,9 +68,16 @@ import type { StockfishEval } from "@/lib/chess/stockfish";
 
 type BotMovePhase = "idle" | "initial" | "expanded";
 
+export interface BotMoveRequest {
+  fen: string;
+  elo: number;
+  config: EloConfig;
+}
+
 export interface UseBotMoveReturn {
-  requestBotMove: (fen: string, config: EloConfig) => void;
+  requestBotMove: (request: BotMoveRequest) => void;
   cancelPendingMove: () => void;
+  resetBotSession: () => void;
   thinking: boolean;
   evaluation: StockfishEval | null;
   evaluate: (fen: string, config?: EloConfig, options?: { multiPv?: number }) => void;
@@ -80,13 +113,19 @@ export function useBotMove(onMoveReady: (uciMove: string) => void): UseBotMoveRe
   const cancelledRef = useRef(false);
   const thinkingRef = useRef(false);
 
+  // Survival/quality hysteresis state — see file header. Session-scoped,
+  // reset only via resetBotSession(), never inferred from position.
+  const modeRef = useRef<BotStrengthMode>("quality");
+  const firstDecisionRef = useRef(true);
+
   const setThinkingBoth = useCallback((val: boolean) => {
     thinkingRef.current = val;
     setThinking(val);
   }, []);
 
-  const requestBotMove = useCallback((fen: string, config: EloConfig) => {
+  const requestBotMove = useCallback((request: BotMoveRequest) => {
     if (thinkingRef.current) return;
+    const { fen, config } = request;
 
     cancelledRef.current = false;
     phaseRef.current = "initial";
@@ -94,6 +133,9 @@ export function useBotMove(onMoveReady: (uciMove: string) => void): UseBotMoveRe
     activeConfigRef.current = config;
 
     // Roll quality once per move — reused across initial + expanded search.
+    // Irrelevant if the move ends up resolved via the survival pipeline
+    // instead, but cheap to compute either way and keeps this function's
+    // shape unchanged from before.
     desiredQualityRef.current = config.qualityWeights
       ? rollQuality(config.qualityWeights)
       : null;
@@ -121,6 +163,18 @@ export function useBotMove(onMoveReady: (uciMove: string) => void): UseBotMoveRe
     stop();
   }, [stop, setThinkingBoth]);
 
+  // Called by the app whenever a new bot session begins — New Game, Load
+  // Game, Continue Position, Import PGN, Import FEN. NOT called by undo,
+  // which revisits the same session rather than starting a new one.
+  // Resets the survival/quality state machine so a new session never
+  // inherits mode state from whatever came before it.
+  const resetBotSession = useCallback(() => {
+    firstDecisionRef.current = true;
+    modeRef.current = "quality"; // inert — overwritten on first decision —
+    // avoids leaving a stale "survival" value
+    // sitting around between sessions.
+  }, []);
+
   /**
    * Restricts `classified` to book-move candidates when a book set is
    * active and at least one book move is present in the pool. Falls back
@@ -137,6 +191,18 @@ export function useBotMove(onMoveReady: (uciMove: string) => void): UseBotMoveRe
     return filtered.length > 0 ? filtered : classified;
   }
 
+  /**
+   * Raw-candidate sibling of bookScopedPool, for the survival pipeline —
+   * the cp-tolerance pool is built from PvCandidate[] directly, never
+   * classified into quality tiers, so it needs its own filter.
+   */
+  function bookScopedRawPool(pool: PvCandidate[]): PvCandidate[] {
+    const bookSet = bookSetRef.current;
+    if (!bookSet || bookSet.size === 0) return pool;
+    const filtered = pool.filter((c) => bookSet.has(c.move));
+    return filtered.length > 0 ? filtered : pool;
+  }
+
   useEffect(() => {
     if (cancelledRef.current) return;
     if (phaseRef.current === "idle") return;
@@ -150,7 +216,7 @@ export function useBotMove(onMoveReady: (uciMove: string) => void): UseBotMoveRe
     const fen = activeFenRef.current;
 
     // Full-strength tier (no qualityWeights) — always PV1, no expansion,
-    // no book filtering.
+    // no book filtering, no survival mode.
     if (!desired || !config?.qualityWeights) {
       phaseRef.current = "idle";
       setThinkingBoth(false);
@@ -159,6 +225,26 @@ export function useBotMove(onMoveReady: (uciMove: string) => void): UseBotMoveRe
     }
 
     if (phaseRef.current === "initial") {
+      const bestWinPercent = computeBestWinPercent(moves);
+
+      if (firstDecisionRef.current) {
+        modeRef.current = bestWinPercent < SURVIVAL_ENTER_THRESHOLD ? "survival" : "quality";
+        firstDecisionRef.current = false;
+      } else {
+        modeRef.current = nextBotStrengthMode(modeRef.current, bestWinPercent);
+      }
+
+      if (modeRef.current === "survival") {
+        const cpTolerance = config.cpTolerance ?? 0;
+        const cpPool = buildCpTolerancePool(moves, cpTolerance);
+        const scoped = bookScopedRawPool(cpPool);
+        const chosen = pickFromCpPool(scoped.length > 0 ? scoped : cpPool);
+        phaseRef.current = "idle";
+        setThinkingBoth(false);
+        onMoveReady(chosen.move);
+        return;
+      }
+
       const classified = classifyCandidates(moves);
       const pool = bookScopedPool(classified);
       const exact = pickExactQuality(pool, desired);
@@ -193,5 +279,5 @@ export function useBotMove(onMoveReady: (uciMove: string) => void): UseBotMoveRe
     }
   }, [evaluation, onMoveReady, evaluate, setThinkingBoth]);
 
-  return { requestBotMove, cancelPendingMove, thinking, evaluation, evaluate, engineError };
+  return { requestBotMove, cancelPendingMove, resetBotSession, thinking, evaluation, evaluate, engineError };
 }

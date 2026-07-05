@@ -72,19 +72,19 @@ const PIECE_VALUES: Record<string, number> = {
 };
 
 const PERFORMANCE_TABLE: readonly [number, number][] = [
-  [100, 3200],
-  [99, 3050],
-  [97, 2900],
-  [95, 2700],
-  [92, 2500],
-  [89, 2300],
-  [85, 2100],
-  [80, 1900],
-  [75, 1700],
-  [69, 1500],
-  [62, 1300],
-  [55, 1100],
-  [0, 800],
+  [100, 3200], // unchanged — definitional ceiling, not calibration-dependent
+  [98, 3050],  // was 99
+  [96, 2900],  // was 97
+  [93, 2700],  // was 95
+  [90, 2500],  // was 92
+  [87, 2300],  // was 89
+  [84, 2100],  // was 85
+  [80, 1900],  // unchanged — already close to the "club, ~80% = clean game" anchor
+  [77, 1700],  // was 75
+  [74, 1500],  // was 69 — biggest single shift, see below
+  [66, 1300],  // was 62
+  [58, 1100],  // was 55
+  [0, 800],    // unchanged — interpolation floor, not a data point
 ];
 
 // ─── Material ─────────────────────────────────────────────────────────────────
