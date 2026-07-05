@@ -1,20 +1,14 @@
 // src/lib/chess/reviewEngine.ts
 
 import { REVIEW_CONFIG, CURRENT_REVIEW_VERSION } from "./reviewConstants";
+import { cpToWinPercent, evalToWinPercent, classifyWinLoss, type MoveQuality } from "./evaluation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type MoveClassification =
-  | "book"
-  | "brilliant"
-  | "great"
-  | "missedWin"
-  | "best"
-  | "excellent"
-  | "good"
-  | "inaccuracy"
-  | "mistake"
-  | "blunder";
+// Extends the bot-domain-primitive vocabulary (evaluation.ts) with
+// review-only labels — book/brilliant/great/missedWin. Dependency runs
+// review → bot vocabulary, never the reverse.
+export type MoveClassification = MoveQuality | "book" | "brilliant" | "great" | "missedWin";
 
 export type GamePhase = "opening" | "middlegame" | "endgame";
 
@@ -129,57 +123,11 @@ export function buildMaterialHistory(fens: readonly string[]): MaterialCount[] {
 
 // ─── Win probability model ────────────────────────────────────────────────────
 //
-// Win% conversion, the per-move accuracy formula, and the game-level
-// accuracy aggregation below are all verified against actual Lichess
-// source (lila's Eval.scala / WinPercent.scala / AccuracyPercent.scala),
-// not reverse-engineered approximations. Only move CLASSIFICATION (the
-// Best/Excellent/Good/.../Brilliant label) departs from Lichess — see
-// classifyMove and REVIEW_CONFIG.thresholds for that hybrid design.
-
-/**
- * Convert a centipawn evaluation into a win percentage (0-100) for the side
- * the evaluation is expressed from the perspective of.
- *
- * Matches Lichess's published implementation exactly (Eval.Cp.ceiled +
- * WinPercent.fromCentiPawns): cp is clamped to ±REVIEW_CONFIG.cpCeiling
- * BEFORE the sigmoid is applied, not after. This means evaluations beyond
- * the ceiling all map to the same win% — a +5000cp position isn't treated
- * as "more winning" than a +1000cp one.
- *
- * Reference values for REVIEW_CONFIG.winPercentSteepness = 0.00368208 —
- * verify these still hold (see reviewEngine.test.ts) before changing the
- * constant, since this curve underlies both accuracy and classification:
- *
- *   cp =     0  ->  50.00%
- *   cp =  +100  ->  59.12%
- *   cp =  -100  ->  40.88%
- *   cp = +1000  ->  97.55%  (= the ceiling — also the value for any cp >= 1000)
- *   cp = -1000  ->   2.45%  (= the floor   — also the value for any cp <= -1000)
- */
-export function cpToWinPercent(cp: number): number {
-  const ceiled = Math.max(-REVIEW_CONFIG.cpCeiling, Math.min(REVIEW_CONFIG.cpCeiling, cp));
-  const raw = 50 + 50 * (2 / (1 + Math.exp(-REVIEW_CONFIG.winPercentSteepness * ceiled)) - 1);
-  // The sigmoid asymptotes naturally stay within (0, 100), but clamp
-  // explicitly so the invariant holds regardless of floating-point behavior
-  // at the tails.
-  return Math.max(0, Math.min(100, raw));
-}
-
-/**
- * Convert an evaluation (centipawns or forced mate) into a win percentage
- * (0-100).
- *
- * A forced mate is NOT treated as a literal 100%/0% probability. Matching
- * Lichess's published implementation (Eval.Cp.ceilingWithSignum), a mate is
- * converted into a SIGNED CEILING centipawn value (±REVIEW_CONFIG.cpCeiling)
- * and run through the same sigmoid as everything else — i.e. "a forced mate
- * is as winning as our most extreme cp evaluation gets", not "a guaranteed
- * win with certainty 1".
- */
-export function evalToWinPercent(cp: number | null, mate: number | null): number {
-  if (mate !== null) return cpToWinPercent(mate > 0 ? REVIEW_CONFIG.cpCeiling : -REVIEW_CONFIG.cpCeiling);
-  return cpToWinPercent(cp ?? 0);
-}
+// cpToWinPercent and evalToWinPercent now live in evaluation.ts (imported
+// above) — the single source of truth shared with botMoveSelection.ts.
+// Re-exported here for callers that import them from reviewEngine.ts
+// directly (no behavior change from the original inline definitions).
+export { cpToWinPercent, evalToWinPercent };
 
 /**
  * Win-percentage lost by the ACTUAL MOVE PLAYED, comparing the position
@@ -349,9 +297,7 @@ export function classifyMove(params: {
   //
   // useStockfish contract: bestMoves[].score AND bestMoves[].mate are both
   // already side-to-move perspective (same convention as bestMoveEval /
-  // bestMoveMate above) — verified against applyHumanError in useStockfish,
-  // which reorders bestMoves[] entries without transforming score or mate,
-  // implying both fields share one consistent perspective per entry.
+  // bestMoveMate above).
   secondBestEval: number | null;
   secondBestMate: number | null;
 }): { classification: MoveClassification; cpLoss: number; winPercentLoss: number } {
@@ -412,24 +358,14 @@ const cpLoss = Math.max(0, best_ - eval_);
   const ownBefore = sideToMove === "w" ? materialBefore.white : materialBefore.black;
   const ownAfter = sideToMove === "w" ? materialAfter.white : materialAfter.black;
   const isSacrifice = ownAfter < ownBefore;
-  
+
 
   // ── Base classification: Best is an exact-match check (no threshold, no
-  //    tolerance). Everything else bands on winLossVsBest. ──
-  let classification: MoveClassification;
-  if (isTopMove) {
-    classification = "best";
-  } else if (winLossVsBest < REVIEW_CONFIG.thresholds.excellent) {
-    classification = "excellent";
-  } else if (winLossVsBest < REVIEW_CONFIG.thresholds.good) {
-    classification = "good";
-  } else if (winLossVsBest < REVIEW_CONFIG.thresholds.inaccuracy) {
-    classification = "inaccuracy";
-  } else if (winLossVsBest < REVIEW_CONFIG.thresholds.mistake) {
-    classification = "mistake";
-  } else {
-    classification = "blunder";
-  }
+  //    tolerance). Everything else delegates to the single shared
+  //    classifier (classifyWinLoss, evaluation.ts) — also used by
+  //    botMoveSelection.ts, so the boundary definitions can never drift
+  //    between review and bot move selection. ──
+  let classification: MoveClassification = isTopMove ? "best" : classifyWinLoss(winLossVsBest);
 
   // ── Missed Win overlay — overrides Mistake/Blunder ONLY. "A winning
   //    continuation existed and you failed to find it" — NOT "threw away a
@@ -444,11 +380,7 @@ const cpLoss = Math.max(0, best_ - eval_);
   if (isMissedWin) classification = "missedWin";
 
   // ── Great overlay — engine's #1 move ONLY, standing out clearly from the
-  //    runner-up, in a position that wasn't already decided. The only base
-  //    classification this can ever be overlaid onto is "best" (isTopMove
-  //    is required), but it's kept as an explicit overlay — rather than
-  //    folded into the base ladder — so the priority chain stays legible as
-  //    written. ──
+  //    runner-up, in a position that wasn't already decided. ──
   const winPercentMargin = Math.max(0, bestWinPercent - secondBestWinPercent);
   const isGreat =
     isTopMove &&
@@ -457,14 +389,7 @@ const cpLoss = Math.max(0, best_ - eval_);
   if (isGreat) classification = "great";
 
   // ── Brilliant overlay — HIGHEST priority, checked last so it always wins
-  //    when its conditions hold. A sacrifice that is ALREADY Best/Excellent
-  //    quality (winLossVsBest below the Excellent boundary — NOT required
-  //    to be the literal engine #1 move; a sacrifice can be brilliant even
-  //    if Stockfish prefers a small-margin alternative) in a position that
-  //    wasn't already decided. The winLossVsBest gate is what stops an
-  //    unsound or significantly-inferior sacrifice from being called
-  //    Brilliant just because material was given up — Brilliant is an
-  //    overlay ON TOP OF move quality, not a replacement for it. ──
+  //    when its conditions hold. ──
   const isBrilliant =
     isSacrifice &&
     !isDecisiveAlready &&

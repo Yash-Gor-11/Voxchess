@@ -73,3 +73,62 @@ export function openingFamily(name: string): string {
 export function isBookPosition(fen: string): boolean {
   return Object.hasOwn(OPENINGS, normalizeFen(fen));
 }
+
+// ─── Bot opening-book move lookup ───────────────────────────────────────────
+//
+// Everything below this point is NEW — added for the bot's opening-book
+// short-circuit (see useBotMove.ts). detectOpening/isBookPosition above are
+// unchanged and still used only by the review pipeline to label moves
+// already played; bookMoves() answers a different question — "what legal
+// moves from THIS position lead into the book" — which OPENINGS' flat EPD
+// structure has no native index for, so it's derived on demand.
+
+// Lazily required so environments without chess.js loaded for other reasons
+// (unlikely here, but keeps this module's only hard new dependency explicit).
+import { Chess } from "chess.js";
+
+export interface BookMove {
+  readonly uci: string;
+  readonly san: string;
+  /** Normalized EPD of the resulting position — matches OPENINGS keys directly. */
+  readonly epd: string;
+}
+
+/**
+ * Returns every legal move from `fen` whose resulting position is a known
+ * book position. Used exclusively by the bot's opening-book short-circuit
+ * (useBotMove.ts) — NOT by detectOpening/review, which only care about the
+ * deepest matched position in an already-played game.
+ *
+ * Reuses a single Chess instance via move()/undo() rather than
+ * reconstructing one per candidate move — one allocation, one board.
+ *
+ * Deliberately re-derives from legal moves each call rather than indexing
+ * OPENINGS by "moves from position X" — OPENINGS is a flat EPD table with
+ * no such structure. This is O(legal moves) per call; fine at the scale
+ * this is used (at most once per bot move, only while still within the
+ * bot's configured book-ply window).
+ */
+export function bookMoves(fen: string): BookMove[] {
+  let chess: Chess;
+  try {
+    chess = new Chess(fen);
+  } catch {
+    return [];
+  }
+
+  const results: BookMove[] = [];
+  for (const move of chess.moves({ verbose: true })) {
+    chess.move(move);
+    const epd = normalizeFen(chess.fen());
+    if (Object.hasOwn(OPENINGS, epd)) {
+      results.push({
+        uci: `${move.from}${move.to}${move.promotion ?? ""}`,
+        san: move.san,
+        epd,
+      });
+    }
+    chess.undo();
+  }
+  return results;
+}

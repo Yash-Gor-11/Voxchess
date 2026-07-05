@@ -17,7 +17,7 @@ import { ResizeHandle } from "@/components/chess/ResizeHandle";
 import { useResizableBoard } from "@/hooks/useResizableBoard";
 import { useChessGame } from "@/hooks/useChessGame";
 import { useChessVoice } from "@/hooks/useChessVoice";
-import { useStockfish } from "@/hooks/useStockfish";
+import { useBotMove } from "@/hooks/useBotMove";
 import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 import { useVoiceStore } from "@/stores/voiceStore";
 import { saveGame, updateGame, getGame } from "@/lib/supabase/games";
@@ -106,7 +106,6 @@ function PlayPage() {
   const navigate = useNavigate();
   const { game, fen, history, move, moveSan, undo, reset, loadMoves, loadPgn, exportPgn, isCheck, isGameOver, turn } =
     useChessGame();
-  const { evaluation, evaluate } = useStockfish();
   const { boardThemeIndex } = useSettingsStore();
   const setActivateChessCallback = useVoiceStore((s) => s.setActivateChessCallback);
   const boardTheme = BOARD_THEMES[boardThemeIndex] ?? BOARD_THEMES[0];
@@ -162,7 +161,6 @@ function PlayPage() {
   }, [routeSourceType, sourceGameId, sourceNodeId, provenance.sourceType]);
 
   // ── Game state ───────────────────────────────────────────────────────────
-  const [computerThinking, setComputerThinking] = useState(false);
   const [overOpen, setOverOpen] = useState(false);
   const [isPortrait, setIsPortrait] = useState(
     typeof window !== "undefined" ? window.innerWidth < window.innerHeight : false,
@@ -191,7 +189,6 @@ function PlayPage() {
   const [avatarState, setAvatarState] = useState<AvatarState>("idle");
   const [avatarText, setAvatarText] = useState<string>("");
   const avatarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const computerThinkingRef = useRef(false);
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const isComputerTurnRef = useRef(false);
@@ -579,8 +576,7 @@ function PlayPage() {
     setGameOverLabel("");
     setAvatarState("idle");
     setAvatarText("");
-    computerThinkingRef.current = false;
-    setComputerThinking(false);
+    cancelPendingMove();
 
     if (avatarTimeoutRef.current) {
       clearTimeout(avatarTimeoutRef.current);
@@ -589,43 +585,36 @@ function PlayPage() {
     window.speechSynthesis?.cancel();
   }
 
+  // ── Bot move handling ─────────────────────────────────────────────────────
+  // useBotMove owns the full quality-based move selection + lazy MultiPV
+  // expansion sequence. This component only supplies a callback to apply
+  // the chosen move once resolved.
+  const handleBotMoveReady = useCallback((uciMove: string) => {
+    const from = uciMove.slice(0, 2);
+    const to = uciMove.slice(2, 4);
+    const promotion = uciMove.slice(4) || undefined;
+    move(from, to, promotion as "q" | "r" | "b" | "n" | undefined);
+    speakAvatar(pickRandom(currentPersonality.responses.moveQuips));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [move, currentPersonality]);
+
+  const { requestBotMove, cancelPendingMove, thinking: computerThinking, evaluation, evaluate } =
+    useBotMove(handleBotMoveReady);
 
   // ── Computer turn ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isComputerTurn || computerThinkingRef.current) return;
-    computerThinkingRef.current = true;
-    setComputerThinking(true);
+    if (!isComputerTurn || computerThinking) return;
     setAvatarState("thinking");
-    evaluate(fen, eloConfig);
+    requestBotMove(fen, eloConfig);
 
     // Recovery: if engine gives no result within 12s, unblock
     const recovery = setTimeout(() => {
-      if (computerThinkingRef.current) {
-        computerThinkingRef.current = false;
-        setComputerThinking(false);
-        setAvatarState("idle");
-      }
+      cancelPendingMove();
+      setAvatarState("idle");
     }, 12000);
 
     return () => clearTimeout(recovery);
-  }, [isComputerTurn, fen, evaluate, eloConfig]);
-
-  useEffect(() => {
-    if (!computerThinking || !evaluation || !isComputerTurn) return;
-    const moves = evaluation.bestMoves.filter(Boolean);
-    if (moves.length === 0) return;
-    const best = moves[0].move;
-    const timer = setTimeout(() => {
-      const from = best.slice(0, 2);
-      const to = best.slice(2, 4);
-      const promotion = best.slice(4) || undefined;
-      move(from, to, promotion as "q" | "r" | "b" | "n" | undefined);
-      computerThinkingRef.current = false;
-      setComputerThinking(false);
-      speakAvatar(pickRandom(currentPersonality.responses.moveQuips));
-    }, eloConfig.delay ?? 0);
-    return () => clearTimeout(timer);
-  }, [evaluation, computerThinking, isComputerTurn, eloConfig, currentPersonality]);
+  }, [isComputerTurn, fen, eloConfig, requestBotMove, cancelPendingMove, computerThinking]);
 
   useEffect(() => {
     if (!hintPendingRef.current || !evaluation?.bestMoves[0]) return;
@@ -666,8 +655,7 @@ function PlayPage() {
   useEffect(() => {
     if (!isGameOver || !gameStarted) return;
     setGameEnded(true);
-    computerThinkingRef.current = false;
-    setComputerThinking(false);
+    cancelPendingMove();
     setGameOverLabel(getGameOverLabel(game));
     setOverOpen(true);
     const result = getGameResult(game);
@@ -865,8 +853,7 @@ function PlayPage() {
   function handleUndo() {
     if (moveCount < 2) return;
     undo(); undo();
-    computerThinkingRef.current = false;
-    setComputerThinking(false);
+    cancelPendingMove();
     setAvatarState("idle");
     setAvatarText("");
     speakAvatar(pickRandom(currentPersonality.responses.undo));

@@ -70,6 +70,7 @@ export class StockfishEngine {
   private isReady = false;
   private queue: string[] = [];
   private currentFen = "";
+  private currentMultiPv = 1;
   private bestMoves: Array<{ move: string; pv: string; score: number; scoreType: string; scoreVal: number }> = [];
   private scoreByMultiPV: Record<number, { type: string; val: number }> = {};
   private latestDepth = 0;
@@ -182,9 +183,26 @@ export class StockfishEngine {
     this.onEval?.({ score: normalizedScore, mate: normalizedMate, bestMoves, depth: this.latestDepth });
   }
 
-  evaluate(fen: string, config: EloConfig = { label: "Analysis", skillLevel: 20, depth: 20 }) {
-    if (fen === this.currentFen) return;
+  /**
+   * `options.multiPv` — when provided — takes precedence over `config.multiPv`.
+   * This is what lets the bot's lazy 3→8 expansion re-search the SAME
+   * position at a wider MultiPV without EloConfig needing to know about it.
+   *
+   * BUG FIX: the dedupe guard previously keyed on `fen` alone, which
+   * silently no-op'd a re-request for the SAME position at a WIDER multiPv
+   * — required for the expansion to work at all. Now keys on
+   * (fen, multiPv) together.
+   */
+  evaluate(
+    fen: string,
+    config: EloConfig = { label: "Analysis", skillLevel: 20, depth: 20 },
+    options?: { multiPv?: number },
+  ) {
+    const multiPv = options?.multiPv ?? config.multiPv ?? 1;
+
+    if (fen === this.currentFen && multiPv === this.currentMultiPv) return;
     this.currentFen = fen;
+    this.currentMultiPv = multiPv;
     this.queue = [];
     this.bestMoves = [];
     this.scoreByMultiPV = {};
@@ -193,7 +211,7 @@ export class StockfishEngine {
     if (this.evalTimeout) { clearTimeout(this.evalTimeout); this.evalTimeout = null; }
 
     this.send("stop");
-    this.send(`setoption name MultiPV value ${config.multiPv ?? 1}`);
+    this.send(`setoption name MultiPV value ${multiPv}`);
 
     if (config.uciElo !== undefined) {
       this.send("setoption name UCI_LimitStrength value true");
