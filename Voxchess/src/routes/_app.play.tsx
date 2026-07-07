@@ -1017,7 +1017,7 @@ function PlayPage() {
                   <img
                     src={p.images.idle}
                     alt={p.name}
-                    className="h-16 w-16 object-contain"
+                    className="h-14 w-14 object-cover object-top drop-shadow-lg"
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).style.display = "none";
                       const sib = e.currentTarget.nextSibling as HTMLElement | null;
@@ -1035,7 +1035,7 @@ function PlayPage() {
               <img
                 src={currentPersonality.images.idle}
                 alt={currentPersonality.name}
-                className="h-14 w-14 object-contain"
+                className="h-20 w-20 object-cover object-top drop-shadow-lg"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
               />
               <div>
@@ -1270,13 +1270,13 @@ function PlayPage() {
             {/* Personality panel */}
             {personalityVisible && !gameEnded && (
               <Card className="p-4 shrink-0">
-                <div className="flex items-start gap-3">
-                  <div className="shrink-0 w-16 h-16">
+                <div className="flex items-start gap-4">
+                  <div className="shrink-0 w-24 h-24 overflow-hidden">
                     <img
                       key={avatarState}
                       src={currentPersonality.images[avatarState]}
                       alt={currentPersonality.name}
-                      className="w-full h-full object-contain drop-shadow-sm"
+                      className="w-full h-full object-cover object-top drop-shadow-lg"
                       style={{
                         animation:
                           avatarState === "idle" ? "avatarBob 3s ease-in-out infinite" :

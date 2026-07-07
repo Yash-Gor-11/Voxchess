@@ -29,12 +29,12 @@ export function GameOverDialog({ open, result, onClose, onNew, personality, avat
         </DialogHeader>
 
         <div className="flex items-center gap-4 py-2">
-          <div className="shrink-0 w-24 h-24">
+          <div className="shrink-0 w-32 h-32 overflow-hidden">
             <img
               key={avatarState}
               src={personality.images[avatarState]}
               alt={personality.name}
-              className="w-full h-full object-contain drop-shadow-sm"
+              className="w-full h-full object-cover object-top drop-shadow-lg"
               style={{ animation: "avatarSlideIn 0.4s ease-out" }}
               onError={(e) => {
                 const el = e.currentTarget as HTMLImageElement;

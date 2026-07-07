@@ -51,16 +51,16 @@ function getResponseBank(
   personality: ReturnType<typeof getPersonality>,
 ): string[] {
   switch (classification) {
-    case "brilliant":  return personality.responses.reviewBrilliant;
-    case "great":      return personality.responses.reviewGreat;
-    case "best":       return personality.responses.reviewBest;
-    case "excellent":   return personality.responses.reviewExcellent;
-    case "good":       return personality.responses.reviewGood;
+    case "brilliant": return personality.responses.reviewBrilliant;
+    case "great": return personality.responses.reviewGreat;
+    case "best": return personality.responses.reviewBest;
+    case "excellent": return personality.responses.reviewExcellent;
+    case "good": return personality.responses.reviewGood;
     case "inaccuracy": return personality.responses.reviewInaccuracy;
-    case "mistake":    return personality.responses.reviewMistake;
+    case "mistake": return personality.responses.reviewMistake;
     case "blunder":
-    case "missedWin":  return personality.responses.reviewBlunder;
-    case "book":       return personality.responses.reviewBook;
+    case "missedWin": return personality.responses.reviewBlunder;
+    case "book": return personality.responses.reviewBook;
   }
 }
 
@@ -106,8 +106,8 @@ export function ReviewCoach({
     // Use modulo to avoid seeding issues — consistent for a given ply in this session
     const text = bank[move.ply % bank.length] ?? bank[0];
     setDisplayText(text);
-  // Recompute when the move changes or personality changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Recompute when the move changes or personality changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [move?.ply, personalityId]);
 
   // ── Audio trigger logic ───────────────────────────────────────────────────
@@ -143,7 +143,7 @@ export function ReviewCoach({
 
     speakLine(text);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [move?.ply, move?.classification, personalityId, navigationSource]);
 
   // ── Audio helpers ─────────────────────────────────────────────────────────
@@ -201,7 +201,7 @@ export function ReviewCoach({
 
   useEffect(() => {
     return () => { stopAudio(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -215,12 +215,12 @@ export function ReviewCoach({
       <div className="flex items-start gap-3">
 
         {/* Avatar */}
-        <div className="shrink-0 w-16 h-16">
+        <div className="shrink-0 w-24 h-24 overflow-hidden">
           <img
             key={avatarState}
             src={personality.images[avatarState]}
             alt={personality.name}
-            className="w-full h-full object-contain drop-shadow-sm"
+            className="w-full h-full object-cover object-top drop-shadow-lg"
             style={{
               animation:
                 avatarState === "idle"
