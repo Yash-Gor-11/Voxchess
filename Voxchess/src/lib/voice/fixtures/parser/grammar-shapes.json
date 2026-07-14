@@ -1,0 +1,32 @@
+[
+  { "phrase": "e4", "matchedPattern": "destination-move" },
+  { "phrase": "knight f3", "matchedPattern": "destination-move" },
+  { "phrase": "knight to f3", "matchedPattern": "destination-move" },
+  { "phrase": "pawn to e four", "matchedPattern": "destination-move" },
+  { "phrase": "rook to e one", "matchedPattern": "destination-move" },
+  { "phrase": "knight takes e5", "matchedPattern": "capture-move" },
+  { "phrase": "takes d4", "matchedPattern": "capture-move" },
+  { "phrase": "pawn takes e5", "matchedPattern": "capture-move" },
+  { "phrase": "e2 e4", "matchedPattern": "from-to-move" },
+  { "phrase": "pawn e two e four", "matchedPattern": "from-to-move" },
+  { "phrase": "e2 to e4", "matchedPattern": "from-to-move" },
+  { "phrase": "e seven e eight queen", "matchedPattern": "from-to-promotion" },
+  { "phrase": "e7 e8 queen", "matchedPattern": "from-to-promotion" },
+  {
+    "_comment": "capture-promotion was added after this fixture's initial version — a large fraction of real promotions happen via capture.",
+    "phrase": "pawn takes e eight queen",
+    "matchedPattern": "capture-promotion"
+  },
+  { "phrase": "takes d8 knight", "matchedPattern": "capture-promotion" },
+  { "phrase": "castle kingside", "matchedPattern": "castle-kingside" },
+  { "phrase": "short castle", "matchedPattern": "castle-kingside" },
+  { "phrase": "O O", "matchedPattern": "castle-kingside" },
+  { "phrase": "castle queenside", "matchedPattern": "castle-queenside" },
+  { "phrase": "long castle", "matchedPattern": "castle-queenside" },
+  { "phrase": "O O O", "matchedPattern": "castle-queenside" },
+  {
+    "_comment": "Negative case — a bare piece with no destination should match nothing.",
+    "phrase": "knight",
+    "matchedPattern": null
+  }
+]

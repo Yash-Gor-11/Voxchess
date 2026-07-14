@@ -6,12 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { Chessboard } from "react-chessboard";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
+import { applyVoiceSettings } from "@/hooks/useVoiceEngine";
+import {
+  CONFIRMATION_TIMEOUT_OPTIONS,
+  RECOGNITION_STYLE_OPTIONS,
+  VOICE_LANGUAGE_OPTIONS,
+  CURRENT_VOICE_LANGUAGE,
+  type ConfirmationTimeoutTier,
+  type RecognitionStyle,
+} from "@/lib/voiceSettingsMapping";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — VoxChess" }] }),
@@ -35,10 +43,17 @@ function SettingsPage() {
   const [chessKey, setChessKey] = useState("Space");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  // Board prefs live in the store so other pages react immediately
-  const { boardThemeIndex, boardSize, setBoardTheme, setBoardSize } = useSettingsStore();
+  // Board + voice prefs live in the store so other pages react immediately.
+  // One subscription rather than two separate calls.
+  const {
+    boardThemeIndex,
+    setBoardTheme,
+    voiceConfirmationTimeout,
+    voiceRecognitionStyle,
+    setVoiceConfirmationTimeout,
+    setVoiceRecognitionStyle,
+  } = useSettingsStore();
 
   useEffect(() => {
     async function load() {
@@ -60,14 +75,19 @@ function SettingsPage() {
         if (data) {
           setDisplayName(data.display_name ?? "");
           const prefs = data.preferences as {
-            boardTheme?: number;
-            boardSize?: number;
+            boardThemeIndex?: number;
             navKey?: string;
             chessKey?: string;
           } | null;
-          // Write into store so board picks them up immediately
-          if (prefs?.boardTheme !== undefined) setBoardTheme(prefs.boardTheme);
-          if (prefs?.boardSize !== undefined) setBoardSize(prefs.boardSize);
+          // Write into store so board picks them up immediately. This key
+          // was previously "boardTheme" here while _app.tsx's own
+          // hydration effect (which is what actually matters -- it's the
+          // one that runs on every page load, not just when Settings is
+          // visited) reads "boardThemeIndex". That mismatch meant a saved
+          // theme never actually survived a reload anywhere -- Play and
+          // Analysis both read the same store, so both were equally
+          // affected. Aligned to "boardThemeIndex" to match _app.tsx.
+          if (prefs?.boardThemeIndex !== undefined) setBoardTheme(prefs.boardThemeIndex);
           if (prefs?.navKey) setNavKey(prefs.navKey);
           if (prefs?.chessKey) setChessKey(prefs.chessKey);
         }
@@ -76,7 +96,7 @@ function SettingsPage() {
       }
     }
     load();
-  }, [setBoardTheme, setBoardSize]);
+  }, [setBoardTheme]);
 
   async function savePreferences(patch: Record<string, unknown>) {
     try {
@@ -124,12 +144,16 @@ function SettingsPage() {
     }
   }
 
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingPhoto(true);
-    toast.info("Profile photo upload coming soon");
-    setUploadingPhoto(false);
+  async function applyRecognitionStyle(style: RecognitionStyle) {
+    setVoiceRecognitionStyle(style);
+    applyVoiceSettings(voiceConfirmationTimeout, style);
+    await savePreferences({ voiceRecognitionStyle: style });
+  }
+
+  async function applyConfirmationTimeout(tier: ConfirmationTimeoutTier) {
+    setVoiceConfirmationTimeout(tier);
+    applyVoiceSettings(tier, voiceRecognitionStyle);
+    await savePreferences({ voiceConfirmationTimeout: tier });
   }
 
   async function handleDeleteAccount() {
@@ -169,38 +193,12 @@ function SettingsPage() {
               </Button>
             </div>
           </div>
-          <div>
-            <Label>Profile picture</Label>
-            <div className="mt-1 flex items-center gap-3">
-              <div className="h-14 w-14 rounded-full bg-[var(--accent-blue)] flex items-center justify-center text-white text-lg font-semibold">
-                {displayName.slice(0, 1).toUpperCase() || "?"}
-              </div>
-              <div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={uploadingPhoto}
-                  onClick={() => document.getElementById("photo-upload")?.click()}
-                >
-                  {uploadingPhoto ? "Uploading…" : "Upload photo"}
-                </Button>
-                <input
-                  id="photo-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handlePhotoUpload}
-                />
-                <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF · max 2MB</p>
-              </div>
-            </div>
-          </div>
         </div>
       </Card>
 
       {/* Voice input */}
       <Card className="p-5 space-y-4">
-        <div className="text-sm font-medium">Voice input</div>
+        <div className="text-sm font-medium">Voice shortcuts</div>
         <Separator />
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -221,6 +219,87 @@ function SettingsPage() {
         </div>
       </Card>
 
+      {/* Voice configuration */}
+      <Card className="p-5 space-y-5">
+        <div className="text-sm font-medium">Voice</div>
+        <Separator />
+
+        {/* Recognition */}
+        <div className="space-y-2">
+          <Label>Recognition style</Label>
+          <div className="space-y-2">
+            {RECOGNITION_STYLE_OPTIONS.map((opt) => (
+              <button
+                key={opt.style}
+                onClick={() => applyRecognitionStyle(opt.style)}
+                className={`w-full text-left px-3 py-2 rounded-md border transition-all ${
+                  voiceRecognitionStyle === opt.style
+                    ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10"
+                    : "border-border hover:border-foreground/40"
+                }`}
+              >
+                <div
+                  className={`text-sm font-medium ${
+                    voiceRecognitionStyle === opt.style ? "text-[var(--accent-blue)]" : ""
+                  }`}
+                >
+                  {opt.label}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">{opt.description}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Confirmation */}
+        <div className="space-y-2">
+          <Label>Confirmation timeout</Label>
+          <div className="text-xs text-muted-foreground -mt-1">
+            How long an ambiguous move or promotion waits for a spoken reply before picking the
+            top choice automatically. Dangerous commands (resign, offer draw) never auto-confirm —
+            silence always cancels those.
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {CONFIRMATION_TIMEOUT_OPTIONS.map((opt) => (
+              <button
+                key={opt.tier}
+                onClick={() => applyConfirmationTimeout(opt.tier)}
+                className={`px-3 py-1.5 rounded-md border text-sm transition-all ${
+                  voiceConfirmationTimeout === opt.tier
+                    ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
+                    : "border-border text-muted-foreground hover:border-foreground"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Language */}
+        <div className="space-y-2">
+          <Label>Voice language</Label>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {VOICE_LANGUAGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.code}
+                disabled={VOICE_LANGUAGE_OPTIONS.length === 1}
+                className={`px-3 py-1.5 rounded-md border text-sm transition-all ${
+                  opt.code === CURRENT_VOICE_LANGUAGE
+                    ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]"
+                    : "border-border text-muted-foreground"
+                } ${VOICE_LANGUAGE_OPTIONS.length === 1 ? "cursor-default opacity-80" : "hover:border-foreground"}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {VOICE_LANGUAGE_OPTIONS.length === 1 && (
+            <p className="text-xs text-muted-foreground">More languages coming soon.</p>
+          )}
+        </div>
+      </Card>
+
       {/* Board */}
       <Card className="p-5 space-y-4">
         <div className="text-sm font-medium">Board</div>
@@ -234,7 +313,7 @@ function SettingsPage() {
                   key={t.name}
                   onClick={async () => {
                     setBoardTheme(i);
-                    await savePreferences({ boardTheme: i });
+                    await savePreferences({ boardThemeIndex: i });
                     toast.success(`Theme: ${t.name}`);
                   }}
                   className={`px-3 py-1.5 rounded-md border text-sm transition-all ${
@@ -249,26 +328,15 @@ function SettingsPage() {
             </div>
           </div>
 
-          <div>
-            <Label>Board size — {boardSize}px</Label>
-            <div className="mt-2">
-              <Slider
-                min={200}
-                max={480}
-                step={20}
-                value={[boardSize]}
-                onValueChange={async ([v]) => {
-                  setBoardSize(v);
-                  await savePreferences({ boardSize: v });
-                }}
-              />
-            </div>
-          </div>
+          {/* Board size removed -- it was never actually wired to
+              anything: Play and Analysis each size their own board via
+              useResizableBoard's drag handle, completely independent of
+              this store field. Adjusting it here did nothing anywhere. */}
 
           <div>
             <Label>Preview</Label>
             <div className="mt-2 flex justify-center">
-              <div style={{ width: boardSize, height: boardSize }}>
+              <div style={{ width: 280, height: 280 }}>
                 <Chessboard
                   options={{
                     position: PREVIEW_FEN,

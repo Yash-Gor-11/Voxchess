@@ -16,7 +16,7 @@ import { BoardOverlay } from "@/components/chess/BoardOverlay";
 import { ResizeHandle } from "@/components/chess/ResizeHandle";
 import { useResizableBoard } from "@/hooks/useResizableBoard";
 import { useChessGame } from "@/hooks/useChessGame";
-import { useChessVoice } from "@/hooks/useChessVoice";
+import { useVoiceEngine } from "@/hooks/useVoiceEngine";
 import { useBotMove } from "@/hooks/useBotMove";
 import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 import { useVoiceStore } from "@/stores/voiceStore";
@@ -27,8 +27,8 @@ import {
   PERSONALITIES, ELO_VALUES, ELO_CONFIG, getPersonality, pickRandom,
   type PersonalityId, type AvatarState, type EloValue,
 } from "@/lib/chess/personalities";
-import { selectVoice } from "@/lib/voice/selectVoice";
-import { hashText } from "@/lib/voice/hashText";
+import { createCharacterSpeech } from "@/lib/characters/speech/CharacterSpeech";
+import type { VoiceCommand } from "@/lib/voice/types";
 import { addToAnalysis } from "@/lib/supabase/annotations";
 import { getPlayStorageKey } from "@/lib/authStorage";
 import { MenuItem, MenuSeparator } from "@/components/chess/MenuItems";
@@ -104,10 +104,11 @@ function calcPlayBoardSize(): number {
 // ── Component ──────────────────────────────────────────────────────────────
 function PlayPage() {
   const navigate = useNavigate();
-  const { game, fen, history, move, moveSan, undo, reset, loadMoves, loadPgn, exportPgn, isCheck, isGameOver, turn } =
+  const { game, fen, history, move, undo, reset, loadMoves, loadPgn, exportPgn, isCheck, isGameOver, turn } =
     useChessGame();
   const { boardThemeIndex } = useSettingsStore();
   const setActivateChessCallback = useVoiceStore((s) => s.setActivateChessCallback);
+  const setResult = useVoiceStore((s) => s.setResult);
   const boardTheme = BOARD_THEMES[boardThemeIndex] ?? BOARD_THEMES[0];
   const { fen: startFen, gameId: urlGameId, sourceGameId, sourceNodeId, sourceType: routeSourceType } = Route.useSearch();
   const playMode: PlayMode = urlGameId
@@ -173,6 +174,11 @@ function PlayPage() {
   const [gameOverAvatarState, setGameOverAvatarState] = useState<AvatarState>("idle");
   const [gameOverAvatarText, setGameOverAvatarText] = useState("");
   const [gameEnded, setGameEnded] = useState(false);
+  // Tri-state rather than inferring readiness from currentGameId being
+  // truthy: lets the Review button distinguish "still saving" from "save
+  // failed" instead of leaving the user staring at a disabled button with
+  // no idea whether it'll ever become clickable.
+  const [saveGameState, setSaveGameState] = useState<"pending" | "saved" | "failed">("pending");
   const [sessionKind, setSessionKind] = useState<"new" | "game">("new");
   const [currentGameId, setCurrentGameId] = useState<string | null>(null);
   // ── Hint state ───────────────────────────────────────────────────────────
@@ -188,7 +194,6 @@ function PlayPage() {
   // ── Avatar state ─────────────────────────────────────────────────────────
   const [avatarState, setAvatarState] = useState<AvatarState>("idle");
   const [avatarText, setAvatarText] = useState<string>("");
-  const avatarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const isComputerTurnRef = useRef(false);
@@ -197,7 +202,13 @@ function PlayPage() {
   const computerColor = playerColor === "w" ? "b" : "w";
   const isComputerTurn = gameStarted && !isGameOver && turn === (computerColor === "w" ? "white" : "black");
   const restoredRef = useRef(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastGameResultRef = useRef<GameResult | null>(null);
+  // One CharacterSpeech controller per avatar slot on screen, matching the
+  // module's documented ownership contract. Replaces the old
+  // audioRef+avatarTimeoutRef pair -- see speakAvatar() below for the
+  // actual behavior-fix note (play.tsx's original setTimeout-based avatar
+  // revert vs. this controller's onComplete callback).
+  const characterSpeechRef = useRef(createCharacterSpeech());
 
   // ── Resizable board (shared hook — drag math + window-resize bookkeeping) ──
   const { boardSize, boardCardRef, dragHandleProps } = useResizableBoard({
@@ -456,19 +467,66 @@ function PlayPage() {
   const boardOrientation: "white" | "black" = ((playerColor === "b") !== flipped) ? "black" : "white";
   const moveCount = history.length;
 
-  const handleVoiceMove = useCallback((san: string) => moveSan(san), [moveSan]);
-  const { activate } = useChessVoice({ game, onMove: handleVoiceMove });
+  // Voice is only meaningful when it's actually the human's turn to move on
+  // the position currently shown -- ChessAdapter.getLegalMoves() reads
+  // whatever fenRef.current is, and legal moves for the WRONG side to move
+  // are still legal moves (chess.js has no notion of "whose turn it is
+  // supposed to be from the UI's perspective"). Gating `enabled` this way
+  // prevents a spoken move from ever landing while the bot is thinking or
+  // while reviewing an earlier position -- the old useChessVoice-based path
+  // had no equivalent guard, so this is a real (small) fix surfaced by
+  // integration, not a redesign of the engine itself.
+  const voiceEnabled = gameStarted && !isGameOver && !isComputerTurn && isAtLatest;
 
-  // The shared voice controls are usable only while a live game is on screen.
+  const handleVoiceCommand = (command: VoiceCommand) => {
+    switch (command.type) {
+      case "undo":
+        handleUndo();
+        break;
+      case "flip-board":
+        setFlipped((f) => !f);
+        break;
+      case "resign":
+        handleResign();
+        break;
+      case "offer-draw":
+        handleDrawOffer();
+        break;
+    }
+  };
+
+  const { activate } = useVoiceEngine({
+    getFen: () => fenRef.current,
+    executeMove: (m) => {
+
+  const ok = move(
+  m.from as Square,
+  m.to as Square,
+  m.promotion?.toLowerCase() as
+    | "q"
+    | "r"
+    | "b"
+    | "n"
+    | undefined,
+);
+
+  return ok;
+},
+    onCommand: handleVoiceCommand,
+    enabled: voiceEnabled,
+  });
+
+  // The shared voice controls are usable only while it's the human's turn
+  // on the live position (see voiceEnabled above).
   useEffect(() => {
-    if (!gameStarted || isGameOver) {
+    if (!voiceEnabled) {
       setActivateChessCallback(null);
       return;
     }
 
     setActivateChessCallback(activate);
     return () => setActivateChessCallback(null);
-  }, [activate, gameStarted, isGameOver, setActivateChessCallback]);
+  }, [activate, voiceEnabled, setActivateChessCallback]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -519,56 +577,54 @@ function PlayPage() {
   }, [activate, gameStarted, isGameOver, goBackward, goForward]);
 
   // ── Avatar helpers ────────────────────────────────────────────────────────
-  function speakAvatar(text: string, state: AvatarState = "talking", duration = 4000) {
-
+  // BEHAVIOR FIX (not a no-op refactor -- see CharacterSpeech.ts's header
+  // and the handoff §4 bug note): the original implementation reverted the
+  // avatar to "idle" via a setTimeout(duration) totally decoupled from
+  // whether the audio/TTS had actually finished playing, and never attached
+  // `onend` to the TTS fallback at all -- a long TTS line could keep
+  // talking after the avatar had already gone visually idle. CharacterSpeech
+  // fixes this by firing onComplete from whichever path (audio file or TTS)
+  // actually finishes, so the two can no longer drift apart.
+  //
+  // win/lose/draw states are "persistent" -- GameOverDialog owns their
+  // lifetime, so onComplete deliberately does nothing for them (matches
+  // the original's checking state !== win/lose/draw before scheduling a
+  // revert at all).
+  function speakAvatar(text: string, state: AvatarState = "talking") {
     setAvatarText(text);
     setAvatarState(state);
 
-    if (avatarTimeoutRef.current) clearTimeout(avatarTimeoutRef.current);
-    if (state !== "win" && state !== "lose" && state !== "draw") {
-      avatarTimeoutRef.current = setTimeout(() => {
+    const persistent = state === "win" || state === "lose" || state === "draw";
+
+    characterSpeechRef.current.speak(text, {
+      characterId: currentPersonality.id,
+      voice: currentPersonality.voice,
+      onComplete: () => {
+        if (persistent) return;
         setAvatarState("idle");
         setAvatarText("");
-      }, duration);
+      },
+    });
+  }
+
+  // Shared by all three game-ending paths (checkmate/stalemate via the
+  // isGameOver effect, resign, and draw-offer-accepted) -- they were each
+  // independently running the identical pending/saved/failed sequence.
+  async function persistCompletedGame(result: GameResult): Promise<void> {
+    lastGameResultRef.current = result;
+    setSaveGameState("pending");
+    try {
+      await saveCurrentGame(result);
+      setSaveGameState("saved");
+    } catch {
+      setSaveGameState("failed");
+      toast.error("Could not save game");
     }
-
-    // Fully stop and release any currently playing audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current = null;
-    }
-    // Cancel any queued browser TTS
-    window.speechSynthesis?.cancel();
-
-    const volume = currentPersonality.voice.volume ?? 1.0;
-    const hash = hashText(text);
-    const audio = new Audio(`/characters/${currentPersonality.id}/audio/${hash}.mp3`);
-    audio.volume = volume;
-    audioRef.current = audio;
-
-    audio.play()
-      .then(() => {
-        // Audio file is playing — hard cancel TTS in case anything was queued
-        window.speechSynthesis?.cancel();
-      })
-      .catch(() => {
-        // Audio file missing or failed — browser TTS only as fallback
-        audioRef.current = null;
-        if (typeof window === "undefined" || !window.speechSynthesis) return;
-        const utt = new SpeechSynthesisUtterance(text);
-        const v = currentPersonality.voice;
-        utt.pitch = v.pitch;
-        utt.rate = v.rate;
-        utt.volume = volume;
-        const voice = selectVoice(v.preferredVoices);
-        if (voice) utt.voice = voice;
-        window.speechSynthesis.speak(utt);
-      });
   }
 
   function resetRuntimeState() {
     setGameEnded(false);
+    setSaveGameState("pending");
     setOverOpen(false);
     setHintStage(0);
     setHintFrom(null);
@@ -578,12 +634,7 @@ function PlayPage() {
     setAvatarText("");
     cancelPendingMove();
     resetBotSession();
-
-    if (avatarTimeoutRef.current) {
-      clearTimeout(avatarTimeoutRef.current);
-    }
-
-    window.speechSynthesis?.cancel();
+    characterSpeechRef.current.stop();
   }
 
   // ── Bot move handling ─────────────────────────────────────────────────────
@@ -659,25 +710,23 @@ function PlayPage() {
     setGameOverLabel(getGameOverLabel(game));
     setOverOpen(true);
     const result = getGameResult(game);
-    void saveCurrentGame(result).catch(() => {
-      toast.error("Could not save game");
-    });
+    void persistCompletedGame(result);
     const playerWon = result === (playerColor === "w" ? "white" : "black");
     if (playerWon) {
       const text = pickRandom(currentPersonality.responses.lose);
       setGameOverAvatarState("lose");
       setGameOverAvatarText(text);
-      speakAvatar(text, "lose", 0);
+      speakAvatar(text, "lose");
     } else if (result === "draw") {
       const text = pickRandom(currentPersonality.responses.drawAccept);
       setGameOverAvatarState("draw");
       setGameOverAvatarText(text);
-      speakAvatar(text, "draw", 0);
+      speakAvatar(text, "draw");
     } else {
       const text = pickRandom(currentPersonality.responses.win);
       setGameOverAvatarState("win");
       setGameOverAvatarText(text);
-      speakAvatar(text, "win", 0);
+      speakAvatar(text, "win");
     }
   }, [isGameOver]);
 
@@ -753,6 +802,32 @@ function PlayPage() {
 
     reset();
     setGameStarted(false);
+  }
+
+  // Distinct from handleNewGame -- navigates to the completed game's
+  // review page instead of resetting to setup. Also doubles as the retry
+  // action when the save failed (saveGameState === "failed"), re-running
+  // the same save with whichever result was actually in flight rather
+  // than guessing. Still clears the localStorage play-session entry
+  // before navigating: without this, coming back to Play later (via
+  // sidebar nav, not "New Game") would resurrect the game that was just
+  // reviewed, since the mid-game snapshot is still sitting in
+  // localStorage (the game-state-persisting effect stops WRITING once
+  // isGameOver is true, but never explicitly clears the existing entry
+  // on its own).
+  function handleReviewGame() {
+    if (saveGameState === "pending") return; // defensive -- button is disabled in this state
+    if (saveGameState === "failed") {
+      const result = lastGameResultRef.current;
+      if (!result) return;
+      void persistCompletedGame(result);
+      return;
+    }
+    if (!currentGameId) return; // shouldn't happen once saveGameState is "saved", but defensive
+    const key = getPlayStorageKey();
+    if (key) localStorage.removeItem(key);
+    setOverOpen(false);
+    navigate({ to: "/review/$gameId", params: { gameId: currentGameId } });
   }
 
   function startGame() {
@@ -851,7 +926,17 @@ function PlayPage() {
   }
 
   function handleUndo() {
-    if (moveCount < 2) return;
+    if (moveCount < 2) {
+      // Was a silent no-op before -- CommandParser correctly recognizes
+      // "undo"/"takeback" as a command regardless of game state, so
+      // saying it too early (fewer than 2 half-moves played) looked
+      // exactly like "it understood but didn't execute," with nothing
+      // telling the user why. Surfacing it via the same voice-result
+      // channel any other voice outcome uses.
+      toast("Nothing to undo yet");
+      setResult({ ok: false, message: "Nothing to undo yet" });
+      return;
+    }
     undo(); undo();
     cancelPendingMove();
     setAvatarState("idle");
@@ -882,12 +967,12 @@ function PlayPage() {
   async function handleResign() {
     setGameEnded(true);
     const result = computerColor === "w" ? "white" : "black";
-    try { await saveCurrentGame(result); } catch { }
+    await persistCompletedGame(result);
     const text = pickRandom(currentPersonality.responses.win);
     setGameOverAvatarState("win");
     setGameOverAvatarText(text);
     setGameOverLabel("You resigned");
-    speakAvatar(text, "win", 0);
+    speakAvatar(text, "win");
     setOverOpen(true);
   }
 
@@ -918,10 +1003,10 @@ function PlayPage() {
       const text = pickRandom(currentPersonality.responses.drawAccept);
       setGameOverAvatarState("draw");
       setGameOverAvatarText(text);
-      speakAvatar(text, "draw", 0);
+      speakAvatar(text, "draw");
       setTimeout(async () => {
         setGameEnded(true);
-        try { await saveCurrentGame("draw"); } catch { }
+        await persistCompletedGame("draw");
         setGameOverLabel("Draw agreed");
         setOverOpen(true);
         toast("Draw accepted");
@@ -1062,7 +1147,11 @@ function PlayPage() {
 
         {/* Action bar */}
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => setGameStarted(false)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => (gameEnded ? handleNewGame() : setGameStarted(false))}
+          >
             <ChevronLeft className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Setup</span>
           </Button>
@@ -1387,8 +1476,17 @@ function PlayPage() {
         <GameOverDialog
           open={overOpen}
           result={gameOverLabel}
-          onClose={() => setOverOpen(false)}
+          onClose={handleNewGame}
           onNew={handleNewGame}
+          onReview={handleReviewGame}
+          reviewButtonLabel={
+            saveGameState === "pending"
+              ? "Saving…"
+              : saveGameState === "failed"
+                ? "Retry Save"
+                : "Review Game"
+          }
+          reviewButtonDisabled={saveGameState === "pending"}
           personality={currentPersonality}
           avatarState={gameOverAvatarState}
           avatarText={gameOverAvatarText}

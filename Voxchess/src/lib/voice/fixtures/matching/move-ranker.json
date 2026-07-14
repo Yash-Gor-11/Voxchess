@@ -1,0 +1,43 @@
+[
+  {
+    "_comment": "Unambiguous move, no confidence given -> default 1.0, no pawn bonus applies (piece was named so all candidates are already that piece).",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "phrase": "knight f3",
+    "context": { "clarity": "fuzzy" },
+    "expected": [{ "san": "Nf3", "score": 1 }]
+  },
+  {
+    "_comment": "Genuine ambiguity — both candidates must tie, not be silently broken. This is exactly the case ConfirmationManager (Phase 5) needs to see as tied.",
+    "fen": "4k3/8/8/8/8/8/3K4/R6R w - - 0 1",
+    "phrase": "rook to e one",
+    "context": { "clarity": "fuzzy" },
+    "expected": [
+      { "san": "Rae1+", "score": 1 },
+      { "san": "Rhe1+", "score": 1 }
+    ]
+  },
+  {
+    "_comment": "Pawn-default tiebreak — knight and pawn can both reach e4; piece unspecified, pawn should rank first.",
+    "fen": "4k3/8/8/8/8/4P3/5N2/4K3 w - - 0 1",
+    "phrase": "e4",
+    "context": { "clarity": "fuzzy", "confidence": 0.9 },
+    "expected": [
+      { "san": "e4", "score": 0.95 },
+      { "san": "Ne4", "score": 0.9 }
+    ]
+  },
+  {
+    "_comment": "Confidence weighting carries through directly when there's nothing else to differentiate.",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "phrase": "knight f3",
+    "context": { "clarity": "fuzzy", "confidence": 0.6 },
+    "expected": [{ "san": "Nf3", "score": 0.6 }]
+  },
+  {
+    "_comment": "No legal candidates -> empty ranked list, not an error.",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "phrase": "knight to a1",
+    "context": { "clarity": "fuzzy" },
+    "expected": []
+  }
+]

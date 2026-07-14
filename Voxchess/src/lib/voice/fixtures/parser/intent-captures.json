@@ -1,0 +1,19 @@
+[
+  {
+    "phrase": "knight takes e5",
+    "expected": { "piece": "N", "from": null, "to": { "file": "e", "rank": "5" }, "capture": true, "promotion": null, "isCastle": null }
+  },
+  {
+    "phrase": "takes d4",
+    "expected": { "piece": null, "from": null, "to": { "file": "d", "rank": "4" }, "capture": true, "promotion": null, "isCastle": null }
+  },
+  {
+    "phrase": "pawn takes e5",
+    "expected": { "piece": "P", "from": null, "to": { "file": "e", "rank": "5" }, "capture": true, "promotion": null, "isCastle": null }
+  },
+  {
+    "_comment": "'x' is a CAPTURE_ALIASES entry in aliases.ts, resolving to 'takes' before grammar sees it.",
+    "phrase": "knight x e5",
+    "expected": { "piece": "N", "from": null, "to": { "file": "e", "rank": "5" }, "capture": true, "promotion": null, "isCastle": null }
+  }
+]

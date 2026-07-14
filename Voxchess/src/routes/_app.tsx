@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { isSpeechSupported } from "@/lib/voice/speechRecognition";
+import { isSpeechSupported } from "@/lib/voice/recognition/BrowserRecognizer";
+import { applyVoiceSettings } from "@/hooks/useVoiceEngine";
+import { isConfirmationTimeoutTier, isRecognitionStyle } from "@/lib/voiceSettingsMapping";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { VoiceStatusBar } from "@/components/layout/VoiceStatusBar";
@@ -22,7 +24,8 @@ function AppLayout() {
   const { user, loading } = useAuth();
   const supported = typeof window === "undefined" ? true : isSpeechSupported();
   const navigate = useNavigate();
-  const { setBoardTheme, setBoardSize } = useSettingsStore();
+  const { setBoardTheme, setVoiceConfirmationTimeout, setVoiceRecognitionStyle } =
+    useSettingsStore();
 
   // Mobile nav sheet state — lifted here so header hamburger and sidebar
   // sheet are in sync without a store or prop-drilling through many layers.
@@ -50,12 +53,32 @@ function AppLayout() {
       .eq("id", user.id)
       .single()
       .then(({ data }) => {
-        if (!data?.preferences) return;
-        const prefs = data.preferences as Record<string, unknown>;
+        const prefs = (data?.preferences ?? {}) as Record<string, unknown>;
+
         if (typeof prefs.boardThemeIndex === "number") setBoardTheme(prefs.boardThemeIndex);
-        if (typeof prefs.boardSize === "number") setBoardSize(prefs.boardSize);
+
+        // Voice settings: validate against the known tier/style sets
+        // rather than trusting the stored value blindly (preferences is
+        // an unstructured JSON blob -- a stale or hand-edited value
+        // shouldn't be able to hand configure() something invalid).
+        const timeoutTier = isConfirmationTimeoutTier(prefs.voiceConfirmationTimeout)
+          ? prefs.voiceConfirmationTimeout
+          : "standard";
+        const recognitionStyle = isRecognitionStyle(prefs.voiceRecognitionStyle)
+          ? prefs.voiceRecognitionStyle
+          : "forgiving";
+        setVoiceConfirmationTimeout(timeoutTier);
+        setVoiceRecognitionStyle(recognitionStyle);
+
+        // The piece that actually matters: apply it to the shared engine
+        // NOW, on app load, not just when the user happens to visit
+        // Settings. VoiceEngine.createSession() reads config via a live
+        // getter, so this takes effect for any session already mounted
+        // (Play/Analysis) without needing to recreate it, and for every
+        // session created afterward.
+        applyVoiceSettings(timeoutTier, recognitionStyle);
       });
-  }, [user, setBoardTheme, setBoardSize]);
+  }, [user, setBoardTheme, setVoiceConfirmationTimeout, setVoiceRecognitionStyle]);
 
   if (loading)
     return (

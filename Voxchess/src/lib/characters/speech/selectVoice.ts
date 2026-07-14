@@ -1,3 +1,14 @@
+// src/lib/characters/speech/selectVoice.ts
+//
+// Ported from src/lib/voice/selectVoice.ts, verified against the current
+// play.tsx/ReviewCoach.tsx call sites (both call `selectVoice(v.preferredVoices)`
+// identically). One addition: getVoices() now guards against a missing
+// `window` (Node has no `window.speechSynthesis` at all — referencing it
+// unguarded would throw ReferenceError, not just return undefined). This
+// is purely a portability/testability addition — real browser behavior is
+// completely unchanged, since `typeof window !== "undefined"` is always
+// true in an actual browser.
+
 // Known female/male voice name patterns across Windows, macOS, iOS, Android, Chrome.
 // Used for gender-aware fallback when no preferred name matches.
 const KNOWN_FEMALE = [
@@ -10,7 +21,7 @@ const KNOWN_MALE = [
   "fred", "ravi", "male", "man", "guy",
 ];
 
-function inferGender(preferredVoices: string[]): "female" | "male" | null {
+export function inferGender(preferredVoices: string[]): "female" | "male" | null {
   const joined = preferredVoices.join(" ").toLowerCase();
   const femaleScore = KNOWN_FEMALE.filter((f) => joined.includes(f)).length;
   const maleScore = KNOWN_MALE.filter((m) => joined.includes(m)).length;
@@ -23,6 +34,9 @@ let cachedVoices: SpeechSynthesisVoice[] = [];
 
 function getVoices(): SpeechSynthesisVoice[] {
   if (cachedVoices.length) return cachedVoices;
+  // Guard added for Node/test environments — real browsers always have
+  // `window`, so this never changes actual runtime behavior there.
+  if (typeof window === "undefined" || !window.speechSynthesis) return [];
   cachedVoices = window.speechSynthesis.getVoices();
   return cachedVoices;
 }

@@ -1,0 +1,12 @@
+[
+  { "transcript": "pawn e2 e4", "expected": ["pawn", "e", "2", "e", "4"] },
+  { "transcript": "pawn e two e four", "expected": ["pawn", "e", "two", "e", "four"] },
+  { "transcript": "Knight to f three", "expected": ["knight", "to", "f", "three"] },
+  { "transcript": "knight takes e5", "expected": ["knight", "takes", "e", "5"] },
+  { "transcript": "rook a one", "expected": ["rook", "a", "one"] },
+  { "transcript": "queen takes h8", "expected": ["queen", "takes", "h", "8"] },
+  { "transcript": "castle", "expected": ["castle"] },
+  { "transcript": "", "expected": [] },
+  { "transcript": "   ", "expected": [] },
+  { "transcript": "eight", "expected": ["eight"] }
+]

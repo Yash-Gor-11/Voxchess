@@ -31,7 +31,7 @@ import { saveAnnotations, getAnnotations } from "@/lib/supabase/annotations";
 import { AnalysisTree, type TreeNode } from "@/lib/chess/analysisEngine";
 import { useStockfish } from "@/hooks/useStockfish";
 import { useVoiceStore } from "@/stores/voiceStore";
-import { isSpeechSupported, startRecognition } from "@/lib/voice/speechRecognition";
+import { useAnalysisVoice } from "@/hooks/useAnalysisVoice";
 import { useSettingsStore, BOARD_THEMES } from "@/stores/settingsStore";
 import { PromotionPickerModal } from "@/components/chess/PromotionPickerModal";
 import { parseSinglePgn } from "@/lib/chess/pgnImport";
@@ -116,7 +116,7 @@ function AnalysisPage() {
   const { gameId } = Route.useParams();
   const navigate = useNavigate();
   const { evaluation, evaluate, engineError } = useStockfish();
-  const { setActive, setStatus, setTranscript, setResult } = useVoiceStore();
+  const { setActive, setStatus, setTranscript, setResult, setConfirmationPrompt } = useVoiceStore();
   const [revision, setRevision] = useState(0);
   const [tree, setTree] = useState<AnalysisTree | null>(null);
   const [currentNode, setCurrentNode] = useState<TreeNode | null>(null);
@@ -288,17 +288,25 @@ function AnalysisPage() {
     toast("Back to main line");
   }, []);
 
+  // Tree-navigation voice vocabulary — UNTOUCHED by the voice-engine
+  // integration (per the handoff's Phase 1 audit: this is navigation, not
+  // move input, genuinely unrelated to what AnalysisChessAdapter enables).
+  // Now returns a boolean rather than unconditionally setting an "error"
+  // result on no match, since useAnalysisVoice tries this FIRST and falls
+  // through to real move parsing when it returns false — the final
+  // "nothing matched at all" messaging is the hook's job now, not this
+  // function's.
   const handleVoiceCommand = useCallback(
-    (t: string) => {
+    (t: string): boolean => {
       let normalized = t;
       Object.entries(NUMBER_WORDS).forEach(([word, num]) => {
         normalized = normalized.replace(new RegExp(`\\b${word}\\b`, "g"), String(num));
       });
-      if (/\b(first|start|beginning)\b/.test(normalized)) { first(); setResult({ ok: true, message: "First move" }); setStatus("success"); return; }
-      if (/\b(last|end|final)\b/.test(normalized)) { last(); setResult({ ok: true, message: "Last move" }); setStatus("success"); return; }
-      if (/\b(back|previous|prev)\b/.test(normalized)) { prev(); setResult({ ok: true, message: "Previous" }); setStatus("success"); return; }
-      if (/\b(next|forward)\b/.test(normalized)) { next(); setResult({ ok: true, message: "Next" }); setStatus("success"); return; }
-      if (/\b(main line|mainline)\b/.test(normalized)) { backToMainLine(); setResult({ ok: true, message: "Main line" }); setStatus("success"); return; }
+      if (/\b(first|start|beginning|1st)\b/.test(normalized)) { first(); setResult({ ok: true, message: "First move" }); setStatus("success"); return true; }
+      if (/\b(last|end|final)\b/.test(normalized)) { last(); setResult({ ok: true, message: "Last move" }); setStatus("success"); return true; }
+      if (/\b(back|previous|prev)\b/.test(normalized)) { prev(); setResult({ ok: true, message: "Previous" }); setStatus("success"); return true; }
+      if (/\b(next|forward)\b/.test(normalized)) { next(); setResult({ ok: true, message: "Next" }); setStatus("success"); return true; }
+      if (/\b(main line|mainline)\b/.test(normalized)) { backToMainLine(); setResult({ ok: true, message: "Main line" }); setStatus("success"); return true; }
       const jumpMatch = normalized.match(/(?:go to|jump to|move|goto)\s+(\d+)/);
       if (jumpMatch) {
         const moveNum = parseInt(jumpMatch[1]);
@@ -308,45 +316,67 @@ function AnalysisPage() {
           setResult({ ok: true, message: `Move ${moveNum}` });
           setStatus("success");
         }
-        return;
+        return true;
       }
-      setResult({ ok: false, message: `Not recognised: "${t}"` });
-      setStatus("error");
+      return false;
     },
     [first, last, prev, next, backToMainLine, setResult, setStatus],
   );
 
-  const activateVoice = useCallback(() => {
-    if (!isSpeechSupported()) { toast.error("Voice requires Chrome or Edge"); return; }
-    if (isListening) return;
-    setIsListening(true);
-    setActive("chess");
-    setStatus("listening");
-    setTranscript("");
-    setResult(null);
-    let resultReceived = false;
-    let handle: { stop: () => void } | null = null;
-    handle = startRecognition({
-      onResult: (t, isFinal) => {
-        setTranscript(t);
-        if (!isFinal) return;
-        resultReceived = true;
-        handle?.stop();
-        handleVoiceCommand(t.toLowerCase().trim());
-      },
-      onEnd: () => {
-        setIsListening(false);
-        if (!resultReceived) { setActive(null); setStatus("idle"); }
-        else { setTimeout(() => { setActive(null); setStatus("idle"); }, 1500); }
-      },
-      onError: () => { setIsListening(false); setActive(null); setStatus("error"); },
-    });
-  }, [isListening, handleVoiceCommand, setActive, setStatus, setTranscript, setResult]);
+  // Real move-input voice, layered on top of the untouched nav vocabulary
+  // above via useAnalysisVoice's hybrid dispatch (nav tried first, then
+  // flip-board, then AnalysisChessAdapter-backed move parsing).
+  const { activate: activateVoice, stop: stopVoice } = useAnalysisVoice({
+    getTree: () => treeRef.current,
+    onMoveApplied: () => {
+      if (!treeRef.current) return;
+      setRevision((r) => r + 1);
+      setCurrentNode({ ...treeRef.current.current });
+    },
+    tryNavCommand: handleVoiceCommand,
+    onFlipBoard: () => setFlipped((f) => !f),
+    onTranscript: setTranscript,
+    onConfirmationPrompt: setConfirmationPrompt,
+    onListening: () => {
+      setIsListening(true);
+      setActive("chess");
+      setStatus("listening");
+      setTranscript("");
+      setResult(null);
+    },
+    onIdle: () => {
+      setIsListening(false);
+      setActive(null);
+      setStatus("idle");
+    },
+    onError: (message) => {
+      setResult({ ok: false, message });
+      setStatus("error");
+      toast.error(message);
+    },
+  });
+
+  const guardedActivate = useCallback(() => {
+    // Was: `if (isListening) return;` -- a silent no-op that never called
+    // stop() at all (it wasn't even destructured from the hook before
+    // this fix). Pressing the mic button again while already listening
+    // did nothing, instead of toggling off the way Play's equivalent
+    // activate() does (session.stop() when already active). This is the
+    // "manual microphone stop doesn't always behave correctly" bug.
+    if (isListening) {
+      stopVoice();
+      setIsListening(false);
+      setActive(null);
+      setStatus("idle");
+      return;
+    }
+    activateVoice();
+  }, [isListening, activateVoice, stopVoice, setActive, setStatus]);
 
   useEffect(() => {
-    setActivateChessCallback(activateVoice);
+    setActivateChessCallback(guardedActivate);
     return () => setActivateChessCallback(null);
-  }, [activateVoice, setActivateChessCallback]);
+  }, [guardedActivate, setActivateChessCallback]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -355,11 +385,11 @@ function AnalysisPage() {
       if (inputFocused) return;
       if (e.key === "ArrowLeft") { e.preventDefault(); prev(); }
       if (e.key === "ArrowRight") { e.preventDefault(); next(); }
-      if (e.code === "Space") { e.preventDefault(); activateVoice(); }
+      if (e.code === "Space") { e.preventDefault(); guardedActivate(); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [prev, next, activateVoice]);
+  }, [prev, next, guardedActivate]);
 
   // ── Universal move execution ────────────────────────────────────────────────
   // Called by drag (onPieceDrop) and click (handleSquareClick) today; designed

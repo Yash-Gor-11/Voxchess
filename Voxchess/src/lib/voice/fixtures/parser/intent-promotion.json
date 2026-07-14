@@ -1,0 +1,28 @@
+[
+  {
+    "phrase": "e7 e8 queen",
+    "expected": { "piece": null, "from": { "file": "e", "rank": "7" }, "to": { "file": "e", "rank": "8" }, "capture": false, "promotion": "Q", "isCastle": null }
+  },
+  {
+    "phrase": "e seven e eight queen",
+    "expected": { "piece": null, "from": { "file": "e", "rank": "7" }, "to": { "file": "e", "rank": "8" }, "capture": false, "promotion": "Q", "isCastle": null }
+  },
+  {
+    "phrase": "pawn e7 e8 rook",
+    "expected": { "piece": "P", "from": { "file": "e", "rank": "7" }, "to": { "file": "e", "rank": "8" }, "capture": false, "promotion": "R", "isCastle": null }
+  },
+  {
+    "_comment": "Capture-promotion — a large fraction of real promotions happen this way (taking on the back rank).",
+    "phrase": "pawn takes e eight queen",
+    "expected": { "piece": "P", "from": null, "to": { "file": "e", "rank": "8" }, "capture": true, "promotion": "Q", "isCastle": null }
+  },
+  {
+    "phrase": "takes d8 knight",
+    "expected": { "piece": null, "from": null, "to": { "file": "d", "rank": "8" }, "capture": true, "promotion": "N", "isCastle": null }
+  },
+  {
+    "_comment": "Out of scope per v3 §11 ('destination-square form only' for promotion fixtures) — explicit origin square + capture + promotion together has no pattern. Documents the boundary as a deliberate gap, not an oversight.",
+    "phrase": "d7 takes e8 queen",
+    "expectedNoMatch": true
+  }
+]

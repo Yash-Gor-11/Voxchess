@@ -1,0 +1,35 @@
+[
+  {
+    "phrase": "e4",
+    "expected": { "piece": null, "from": null, "to": { "file": "e", "rank": "4" }, "capture": false, "promotion": null, "isCastle": null }
+  },
+  {
+    "phrase": "pawn e4",
+    "expected": { "piece": "P", "from": null, "to": { "file": "e", "rank": "4" }, "capture": false, "promotion": null, "isCastle": null }
+  },
+  {
+    "phrase": "knight f3",
+    "expected": { "piece": "N", "from": null, "to": { "file": "f", "rank": "3" }, "capture": false, "promotion": null, "isCastle": null }
+  },
+  {
+    "phrase": "knight to f3",
+    "expected": { "piece": "N", "from": null, "to": { "file": "f", "rank": "3" }, "capture": false, "promotion": null, "isCastle": null }
+  },
+  {
+    "_comment": "One legal knight move — per v3 §11 this should auto-commit once ChessAdapter/MoveRanker exist (Phase 3+). At the IntentParser stage, only the grammatical parse is verified.",
+    "phrase": "rook to e one",
+    "expected": { "piece": "R", "from": null, "to": { "file": "e", "rank": "1" }, "capture": false, "promotion": null, "isCastle": null }
+  },
+  {
+    "phrase": "e2 e4",
+    "expected": { "piece": null, "from": { "file": "e", "rank": "2" }, "to": { "file": "e", "rank": "4" }, "capture": false, "promotion": null, "isCastle": null }
+  },
+  {
+    "phrase": "pawn e two e four",
+    "expected": { "piece": "P", "from": { "file": "e", "rank": "2" }, "to": { "file": "e", "rank": "4" }, "capture": false, "promotion": null, "isCastle": null }
+  },
+  {
+    "phrase": "e2 to e4",
+    "expected": { "piece": null, "from": { "file": "e", "rank": "2" }, "to": { "file": "e", "rank": "4" }, "capture": false, "promotion": null, "isCastle": null }
+  }
+]

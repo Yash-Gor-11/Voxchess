@@ -1,0 +1,26 @@
+[
+  {
+    "phrase": "castle kingside",
+    "expected": { "piece": null, "from": null, "to": null, "capture": false, "promotion": null, "isCastle": "K" }
+  },
+  {
+    "phrase": "short castle",
+    "expected": { "piece": null, "from": null, "to": null, "capture": false, "promotion": null, "isCastle": "K" }
+  },
+  {
+    "phrase": "O O",
+    "expected": { "piece": null, "from": null, "to": null, "capture": false, "promotion": null, "isCastle": "K" }
+  },
+  {
+    "phrase": "castle queenside",
+    "expected": { "piece": null, "from": null, "to": null, "capture": false, "promotion": null, "isCastle": "Q" }
+  },
+  {
+    "phrase": "long castle",
+    "expected": { "piece": null, "from": null, "to": null, "capture": false, "promotion": null, "isCastle": "Q" }
+  },
+  {
+    "phrase": "O O O",
+    "expected": { "piece": null, "from": null, "to": null, "capture": false, "promotion": null, "isCastle": "Q" }
+  }
+]

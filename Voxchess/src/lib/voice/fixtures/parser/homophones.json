@@ -1,0 +1,24 @@
+[
+  { "transcript": "night f3", "expected": ["knight", "f", "3"] },
+  { "transcript": "rock takes d4", "expected": ["rook", "takes", "d", "4"] },
+  { "transcript": "bishop bee five", "expected": ["bishop", "b", "five"] },
+  { "transcript": "queen see four", "expected": ["queen", "c", "four"] },
+  { "transcript": "pawn to eff four", "expected": ["pawn", "to", "f", "four"] },
+  { "transcript": "rook aitch one", "expected": ["rook", "h", "one"] },
+  { "transcript": "won pawn takes", "expected": ["one", "pawn", "takes"] },
+  { "transcript": "castle king side", "expected": ["castle-kingside"] },
+  { "transcript": "short castle", "expected": ["castle-kingside"] },
+  { "transcript": "long castle", "expected": ["castle-queenside"] },
+  { "transcript": "O O", "expected": ["castle-kingside"] },
+  { "transcript": "O O O", "expected": ["castle-queenside"] },
+  {
+    "_comment": "Deliberately NOT resolved — 'to' vs 'two' ambiguity is grammar-level, see aliases.ts header and v3 blueprint §11.",
+    "transcript": "pawn to e four",
+    "expected": ["pawn", "to", "e", "four"]
+  },
+  {
+    "_comment": "'too' is phonetically ambiguous the same way 'to' is (preposition vs mishearing of 'two') — it must NOT be silently canonicalized to 'to', or the numeric interpretation becomes unrecoverable downstream. Passes through unresolved, same as 'to'.",
+    "transcript": "pawn too e four",
+    "expected": ["pawn", "too", "e", "four"]
+  }
+]

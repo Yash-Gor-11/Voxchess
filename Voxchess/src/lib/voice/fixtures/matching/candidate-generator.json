@@ -1,0 +1,52 @@
+[
+  {
+    "_comment": "Unambiguous knight move.",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "phrase": "knight f3",
+    "expectedSans": ["Nf3"]
+  },
+  {
+    "_comment": "Two-rook ambiguity — real ambiguity that MoveRanker/ConfirmationManager (not this module) must resolve.",
+    "fen": "4k3/8/8/8/8/8/3K4/R6R w - - 0 1",
+    "phrase": "rook to e one",
+    "expectedSans": ["Rae1+", "Rhe1+"]
+  },
+  {
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "phrase": "e2 e4",
+    "expectedSans": ["e4"]
+  },
+  {
+    "fen": "4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1",
+    "phrase": "pawn takes d5",
+    "expectedSans": ["exd5"]
+  },
+  {
+    "_comment": "Capture without saying 'takes' — must still generate, since real voice UX doesn't require the word.",
+    "fen": "4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1",
+    "phrase": "e4 d5",
+    "expectedSans": ["exd5"]
+  },
+  {
+    "fen": "k7/4P3/8/8/8/8/8/4K3 w - - 0 1",
+    "phrase": "e7 e8 queen",
+    "expectedSans": ["e8=Q+"]
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/R3K2R w KQ - 0 1",
+    "phrase": "castle kingside",
+    "expectedSans": ["O-O"]
+  },
+  {
+    "_comment": "Destination occupied by own piece — not in legal moves at all, zero candidates.",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "phrase": "knight to a1",
+    "expectedSans": []
+  },
+  {
+    "_comment": "Explicit 'takes' claimed but nothing there to capture — zero candidates, even though the destination square itself would otherwise be a legal quiet move.",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "phrase": "pawn takes e4",
+    "expectedSans": []
+  }
+]

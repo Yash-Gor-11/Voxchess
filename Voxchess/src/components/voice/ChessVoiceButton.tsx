@@ -1,7 +1,7 @@
 import { MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { isSpeechSupported } from "@/lib/voice/speechRecognition";
+import { isSpeechSupported } from "@/lib/voice/recognition/BrowserRecognizer";
 import { useVoiceStore } from "@/stores/voiceStore";
 
 interface Props {

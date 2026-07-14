@@ -14,12 +14,33 @@ interface Props {
   result: string;
   onClose: () => void;
   onNew: () => void;
+  /** Navigates to this game's review page -- distinct from onClose (previously
+   * both buttons called the same handler, so "Review board" never actually
+   * went anywhere). Also doubles as the retry action when the save failed;
+   * see reviewButtonLabel/reviewButtonDisabled. */
+  onReview: () => void;
+  /** "Saving…" / "Review Game" / "Couldn't save — Retry" -- computed by the
+   * caller from its own save-state tracking, since GameOverDialog itself
+   * has no way to know whether the game record has actually been saved. */
+  reviewButtonLabel: string;
+  reviewButtonDisabled: boolean;
   personality: Personality;
   avatarState: AvatarState;
   avatarText: string;
 }
 
-export function GameOverDialog({ open, result, onClose, onNew, personality, avatarState, avatarText }: Props) {
+export function GameOverDialog({
+  open,
+  result,
+  onClose,
+  onNew,
+  onReview,
+  reviewButtonLabel,
+  reviewButtonDisabled,
+  personality,
+  avatarState,
+  avatarText,
+}: Props) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -59,7 +80,9 @@ export function GameOverDialog({ open, result, onClose, onNew, personality, avat
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Review board</Button>
+          <Button variant="outline" onClick={onReview} disabled={reviewButtonDisabled}>
+            {reviewButtonLabel}
+          </Button>
           <Button onClick={onNew}>New game</Button>
         </DialogFooter>
       </DialogContent>

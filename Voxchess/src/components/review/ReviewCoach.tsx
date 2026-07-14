@@ -6,8 +6,7 @@ import {
   getPersonality, pickRandom,
   type PersonalityId, type AvatarState,
 } from "@/lib/chess/personalities";
-import { hashText } from "@/lib/voice/hashText";
-import { selectVoice } from "@/lib/voice/selectVoice";
+import { createCharacterSpeech } from "@/lib/characters/speech/CharacterSpeech";
 import type { MoveReview, MoveClassification } from "@/lib/chess/reviewEngine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -51,16 +50,16 @@ function getResponseBank(
   personality: ReturnType<typeof getPersonality>,
 ): string[] {
   switch (classification) {
-    case "brilliant": return personality.responses.reviewBrilliant;
-    case "great": return personality.responses.reviewGreat;
-    case "best": return personality.responses.reviewBest;
-    case "excellent": return personality.responses.reviewExcellent;
-    case "good": return personality.responses.reviewGood;
+    case "brilliant":  return personality.responses.reviewBrilliant;
+    case "great":      return personality.responses.reviewGreat;
+    case "best":       return personality.responses.reviewBest;
+    case "excellent":   return personality.responses.reviewExcellent;
+    case "good":       return personality.responses.reviewGood;
     case "inaccuracy": return personality.responses.reviewInaccuracy;
-    case "mistake": return personality.responses.reviewMistake;
+    case "mistake":    return personality.responses.reviewMistake;
     case "blunder":
-    case "missedWin": return personality.responses.reviewBlunder;
-    case "book": return personality.responses.reviewBook;
+    case "missedWin":  return personality.responses.reviewBlunder;
+    case "book":       return personality.responses.reviewBook;
   }
 }
 
@@ -89,8 +88,13 @@ export function ReviewCoach({
   // displayText is always set — shown in panel regardless of whether audio fires
   const [displayText, setDisplayText] = useState("");
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ReviewCoach's implementation was already event-driven and correct
+  // (audio.onended/utt.onend already reverted avatar state on actual
+  // completion) -- unlike play.tsx's setTimeout-based version, there's no
+  // behavior fix here, just consolidating onto the shared CharacterSpeech
+  // module per its documented unification of these two near-identical
+  // implementations.
+  const characterSpeechRef = useRef(createCharacterSpeech());
   const lastSpokenPlyRef = useRef<number | null>(null);
   const lastLineRef = useRef<string | null>(null);
 
@@ -106,8 +110,8 @@ export function ReviewCoach({
     // Use modulo to avoid seeding issues — consistent for a given ply in this session
     const text = bank[move.ply % bank.length] ?? bank[0];
     setDisplayText(text);
-    // Recompute when the move changes or personality changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Recompute when the move changes or personality changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [move?.ply, personalityId]);
 
   // ── Audio trigger logic ───────────────────────────────────────────────────
@@ -143,22 +147,13 @@ export function ReviewCoach({
 
     speakLine(text);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [move?.ply, move?.classification, personalityId, navigationSource]);
 
   // ── Audio helpers ─────────────────────────────────────────────────────────
 
   function stopAudio() {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current = null;
-    }
-    window.speechSynthesis?.cancel();
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+    characterSpeechRef.current.stop();
   }
 
   function onSpeechEnd() {
@@ -167,41 +162,21 @@ export function ReviewCoach({
   }
 
   function speakLine(text: string) {
-    stopAudio();
     setAvatarText(text);
     setAvatarState("talking");
 
-    const volume = personality.voice.volume ?? 1.0;
-    const hash = hashText(text);
-    const audio = new Audio(`/characters/${personality.id}/audio/${hash}.mp3`);
-    audio.volume = volume;
-    audioRef.current = audio;
-
-    // Synchronize avatar with actual audio completion
-    audio.onended = onSpeechEnd;
-
-    audio.play()
-      .then(() => { window.speechSynthesis?.cancel(); })
-      .catch(() => {
-        audioRef.current = null;
-        if (typeof window === "undefined" || !window.speechSynthesis) return;
-        const utt = new SpeechSynthesisUtterance(text);
-        const v = personality.voice;
-        utt.pitch = v.pitch;
-        utt.rate = v.rate;
-        utt.volume = volume;
-        utt.onend = onSpeechEnd;
-        const voice = selectVoice(v.preferredVoices);
-        if (voice) utt.voice = voice;
-        window.speechSynthesis.speak(utt);
-      });
+    characterSpeechRef.current.speak(text, {
+      characterId: personality.id,
+      voice: personality.voice,
+      onComplete: onSpeechEnd,
+    });
   }
 
   // ── Cleanup ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
     return () => { stopAudio(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -212,7 +187,7 @@ export function ReviewCoach({
 
   return (
     <div className="p-4 shrink-0">
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-4">
 
         {/* Avatar */}
         <div className="shrink-0 w-24 h-24 overflow-hidden">
