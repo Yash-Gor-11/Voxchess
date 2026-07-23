@@ -80,28 +80,50 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "VoxChess is a voice-first chess platform. Make moves and navigate the entire app by voice.",
+          "Play chess with your voice. Challenge unique AI personalities, analyze games, and navigate the entire experience hands-free.",
       },
       { name: "author", content: "VoxChess" },
+      { name: "theme-color", content: "#0B1F44" },
+
+      // Open Graph
       { property: "og:title", content: "VoxChess — Play chess with your voice" },
       {
         property: "og:description",
-        content: "Voice-first chess. Two-button input. Play, analyse, review — hands-free.",
+        content:
+          "Play chess with your voice. Challenge unique AI personalities, analyze games, and navigate the entire experience hands-free.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { property: "og:site_name", content: "VoxChess" },
+      { property: "og:image", content: "/og-image.png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:type", content: "image/png" },
+
+      // Twitter
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "VoxChess — Play chess with your voice" },
+      {
+        name: "twitter:description",
+        content:
+          "Play chess with your voice. Challenge unique AI personalities, analyze games, and navigate the entire experience hands-free.",
+      },
+      { name: "twitter:image", content: "/og-image.png" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
       },
+
+      // Favicons / PWA
+      { rel: "icon", type: "image/png", sizes: "96x96", href: "/favicons/favicon-96x96.png" },
+      { rel: "icon", type: "image/svg+xml", href: "/favicons/favicon.svg" },
+      { rel: "shortcut icon", href: "/favicons/favicon.ico" },
+      { rel: "apple-touch-icon", sizes: "180x180", href: "/favicons/apple-touch-icon.png" },
+      { rel: "manifest", href: "/favicons/site.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
