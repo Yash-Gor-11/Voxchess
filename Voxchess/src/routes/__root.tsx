@@ -119,11 +119,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
 
       // Favicons / PWA
-      { rel: "icon", type: "image/png", sizes: "96x96", href: "/favicons/favicon-96x96.png" },
-      { rel: "icon", type: "image/svg+xml", href: "/favicons/favicon.svg" },
-      { rel: "shortcut icon", href: "/favicons/favicon.ico" },
-      { rel: "apple-touch-icon", sizes: "180x180", href: "/favicons/apple-touch-icon.png" },
-      { rel: "manifest", href: "/favicons/site.webmanifest" },
+      { rel: "icon", type: "image/png", sizes: "96x96", href: "/favicon/favicon-96x96.png" },
+      { rel: "icon", type: "image/svg+xml", href: "/favicon/favicon.svg" },
+      { rel: "shortcut icon", href: "/favicon/favicon.ico" },
+      { rel: "apple-touch-icon", sizes: "180x180", href: "/favicon/apple-touch-icon.png" },
+      { rel: "manifest", href: "/favicon/site.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
