@@ -107,10 +107,10 @@ function getNth(matches: SlotMatch[], type: SlotType, n: number): string | null 
 }
 
 function buildParseResult(pattern: GrammarPattern, matches: SlotMatch[], raw: string): ParseResult {
-  if (pattern.id === "castle-kingside") {
+  if (pattern.id === "castle-kingside" || pattern.id === "castle-ambiguous-kingside") {
     return { piece: null, from: null, to: null, capture: false, promotion: null, isCastle: "K", raw };
   }
-  if (pattern.id === "castle-queenside") {
+  if (pattern.id === "castle-queenside" || pattern.id === "castle-ambiguous-queenside") {
     return { piece: null, from: null, to: null, capture: false, promotion: null, isCastle: "Q", raw };
   }
 
@@ -126,6 +126,22 @@ function buildParseResult(pattern: GrammarPattern, matches: SlotMatch[], raw: st
       to: { file, rank },
       capture: pattern.id === "capture-move",
       promotion: null,
+      isCastle: null,
+      raw,
+    };
+  }
+
+  if (pattern.id === "destination-promotion") {
+    const file = getNth(matches, "file", 0)!;
+    const rank = rankTokenToDigit(getNth(matches, "rank", 0)!);
+    const promoToken = getNth(matches, "promotionPiece", 0)!;
+    return {
+      piece,
+      from: null,
+      to: { file, rank },
+      capture: false,
+      // Safe cast: isPromotionPieceToken excludes king/pawn (grammar.ts).
+      promotion: PIECE_WORD_TO_SAN[promoToken] as PromotionLetter,
       isCastle: null,
       raw,
     };
@@ -147,15 +163,23 @@ function buildParseResult(pattern: GrammarPattern, matches: SlotMatch[], raw: st
     };
   }
 
-  // from-to-move and from-to-promotion both have two file/rank pairs:
-  // index 0 = origin square, index 1 = destination square.
+  // from-to-move, from-to-promotion, capture-move-with-origin, and
+  // capture-promotion-with-origin all have TWO file/rank pairs: index 0 =
+  // origin square, index 1 = destination square. They differ only in
+  // whether a "takes" slot was present (capture) and whether a trailing
+  // promotionPiece slot was present -- both handled explicitly below
+  // rather than inferred, so adding a future pattern here can't silently
+  // inherit the wrong capture/promotion behavior via fallthrough.
   const fromFile = getNth(matches, "file", 0)!;
   const fromRank = rankTokenToDigit(getNth(matches, "rank", 0)!);
   const toFile = getNth(matches, "file", 1)!;
   const toRank = rankTokenToDigit(getNth(matches, "rank", 1)!);
 
+  const isCapture =
+    pattern.id === "capture-move-with-origin" || pattern.id === "capture-promotion-with-origin";
+
   let promotion: PromotionLetter | null = null;
-  if (pattern.id === "from-to-promotion") {
+  if (pattern.id === "from-to-promotion" || pattern.id === "capture-promotion-with-origin") {
     const promoToken = getNth(matches, "promotionPiece", 0)!;
     // Safe cast: isPromotionPieceToken (grammar.ts) already excludes king/pawn,
     // so PIECE_WORD_TO_SAN[promoToken] is always one of Q/R/B/N here.
@@ -166,7 +190,7 @@ function buildParseResult(pattern: GrammarPattern, matches: SlotMatch[], raw: st
     piece,
     from: { file: fromFile, rank: fromRank },
     to: { file: toFile, rank: toRank },
-    capture: false,
+    capture: isCapture,
     promotion,
     isCastle: null,
     raw,

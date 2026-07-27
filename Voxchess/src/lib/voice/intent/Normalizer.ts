@@ -43,6 +43,34 @@ const CASTLE_PHRASE_REGEX = new RegExp(
 );
 
 /**
+ * Splits compact SAN-style capture notation like "gxh8" or "exd5" into
+ * ["takes", destFile, destRank] -- e.g. "gxh8" -> ["takes", "h", "8"].
+ *
+ * Deliberately DISCARDS the origin file (the "g" in "gxh8") rather than
+ * trying to preserve it as an origin-square disambiguation hint. Properly
+ * supporting that would require a genuinely new capability -- matching a
+ * candidate by origin FILE ONLY, with no rank -- which CandidateGenerator
+ * does not do today (it matches by full square or not at all). Adding
+ * that is out of scope here: it would mean changing CandidateGenerator's
+ * matching behavior, which this pass is explicitly required to leave
+ * alone. Discarding the origin file instead means "gxh8 queen" behaves
+ * exactly like the already-supported bare "takes h8 queen" -- correct
+ * when only one piece can capture there, and gracefully falling back to
+ * the existing ambiguity-confirmation flow (not a new one) when it can't
+ * be resolved from the destination alone.
+ *
+ * Checked before splitAlphaNumeric since this is a longer, more specific
+ * shape (4 characters: file + x + file + digit) that would otherwise
+ * fall through unmatched (splitAlphaNumeric only handles the 2-character
+ * file+digit case).
+ */
+function splitCompactCapture(word: string): string[] | null {
+  const match = word.match(/^([a-h])x([a-h])([1-8])$/);
+  if (!match) return null;
+  return ["takes", match[2], match[3]];
+}
+
+/**
  * Splits a combined alphanumeric token like "e5" or "f3" into ["e", "5"].
  * Web Speech API transcripts are usually spoken-word ("e five"), but some
  * ASR configurations or literal-digit speech produce combined tokens, and
@@ -115,7 +143,8 @@ export function normalize(transcript: string): string[] {
     }
     if (FILLER_WORDS.has(word)) continue;
 
-    for (const piece of splitAlphaNumeric(word)) {
+    const compactCapture = splitCompactCapture(word);
+    for (const piece of compactCapture ?? splitAlphaNumeric(word)) {
       tokens.push(applyWordAliases(piece));
     }
   }

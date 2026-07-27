@@ -74,6 +74,15 @@ const FLIP_BOARD_PHRASES: ReadonlySet<string> = new Set([
   // as RESIGN_PHRASES above; "flip board" already covers this input.
 ]);
 
+const HINT_PHRASES: ReadonlySet<string> = new Set([
+  "hint",
+  "give me a hint",
+  // NOTE: NOT "hint please" — "please" is filler-stripped by Normalizer
+  // before this module ever sees the transcript, so that input always
+  // reaches here as "hint" already, which is listed above. Same
+  // reasoning as RESIGN_PHRASES's "resign the game" note.
+]);
+
 /**
  * Which of these commands are "dangerous" — consequential enough that
  * VoiceSession routes them through a confirmation round before acting
@@ -105,6 +114,7 @@ export function parseCommand(tokens: string[]): VoiceCommand | null {
   if (RESIGN_PHRASES.has(joined)) return { type: "resign" };
   if (OFFER_DRAW_PHRASES.has(joined)) return { type: "offer-draw" };
   if (FLIP_BOARD_PHRASES.has(joined)) return { type: "flip-board" };
+  if (HINT_PHRASES.has(joined)) return { type: "hint" };
 
   return null;
 }

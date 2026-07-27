@@ -117,9 +117,10 @@ export interface VoiceError {
  * Placeholder shape for CommandParser's output (Phase 6, not yet built).
  * Defined now only because VoiceSessionEvents (Phase 4) references it as
  * an event payload type — nothing currently emits a 'command' event; that
- * wiring is Phase 6's job. Kept minimal and matched to v3 §5.9's listed
- * command set (undo/resign/draw/flip) rather than speculatively expanded.
+ * wiring is Phase 6's job. Matched to v3 §5.9's listed command set
+ * (undo/resign/draw/flip), plus "hint" added during the grammar
+ * expansion pass -- not dangerous, executes immediately like undo/flip.
  */
 export interface VoiceCommand {
-  type: "undo" | "resign" | "offer-draw" | "flip-board";
+  type: "undo" | "resign" | "offer-draw" | "flip-board" | "hint";
 }

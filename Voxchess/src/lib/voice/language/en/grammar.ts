@@ -92,6 +92,23 @@ export function isCastleQueensideToken(token: string): boolean {
   return token === "castle-queenside";
 }
 
+/**
+ * Bare, unqualified "castle" -- no direction specified. Matched by TWO
+ * separate patterns (castle-ambiguous-kingside/-queenside, see below),
+ * each independently producing its own ParseResult, so parseIntent
+ * naturally returns both. This is deliberate, not a bug: which
+ * direction(s) are actually legal is exactly CandidateGenerator's job
+ * (via ChessAdapter.getLegalMoves()'s isCastleKingside/isCastleQueenside
+ * flags), and the existing ambiguity-confirmation flow already handles
+ * "more than one legal candidate" -- so bare "castle" gets correct
+ * behavior (auto-resolve if only one direction is legal, numbered
+ * confirmation if both are) for free, with zero new confirmation
+ * vocabulary, by reusing machinery that already exists for move ties.
+ */
+export function isCastleWordToken(token: string): boolean {
+  return token === "castle";
+}
+
 // ── Grammar patterns ────────────────────────────────────────────────────
 
 export type SlotType =
@@ -102,7 +119,8 @@ export type SlotType =
   | "rank"
   | "promotionPiece"
   | "castleKingside"
-  | "castleQueenside";
+  | "castleQueenside"
+  | "castleWord";
 
 export interface SlotSpec {
   type: SlotType;
@@ -130,7 +148,9 @@ export const GRAMMAR_PATTERNS: readonly GrammarPattern[] = [
     id: "from-to-promotion",
     description:
       'Two full squares plus a promotion piece, e.g. "e seven e eight queen". ' +
-      "Must be checked before from-to-move, since from-to-move's shape is a strict prefix of this one.",
+      "Must be checked before from-to-move, since from-to-move's shape is a strict prefix of this one. " +
+      'The trailing optional "to" (added for grammar expansion) supports "e7 e8 promote to queen" ' +
+      '-- "promote" itself is stripped as filler (see aliases.ts), leaving "to queen" here.',
     slots: [
       { type: "piece", optional: true },
       { type: "file" },
@@ -138,6 +158,42 @@ export const GRAMMAR_PATTERNS: readonly GrammarPattern[] = [
       { type: "to", optional: true },
       { type: "file" },
       { type: "rank" },
+      { type: "to", optional: true },
+      { type: "promotionPiece" },
+    ],
+  },
+  {
+    id: "capture-promotion-with-origin",
+    description:
+      'Origin square + takes + destination square + promotion piece, e.g. "pawn g7 takes h8 queen". ' +
+      'Added for grammar expansion -- previously a deliberate gap (see capture-move-with-origin\'s ' +
+      'note on why explicit-origin captures had no pattern at all). Must be checked before ' +
+      "capture-promotion and capture-move-with-origin, since both are strict prefixes of this shape.",
+    slots: [
+      { type: "piece", optional: true },
+      { type: "file" },
+      { type: "rank" },
+      { type: "takes" },
+      { type: "file" },
+      { type: "rank" },
+      { type: "to", optional: true },
+      { type: "promotionPiece" },
+    ],
+  },
+  {
+    id: "capture-promotion",
+    description:
+      'Piece (optional) + takes + destination square + promotion piece, e.g. ' +
+      '"pawn takes e eight queen". A large fraction of real promotions happen ' +
+      "via capture (taking on the back rank), so this needs its own pattern " +
+      "rather than being covered by capture-move + a leftover token. The " +
+      'trailing optional "to" (added for grammar expansion) supports "takes h8 promote to queen".',
+    slots: [
+      { type: "piece", optional: true },
+      { type: "takes" },
+      { type: "file" },
+      { type: "rank" },
+      { type: "to", optional: true },
       { type: "promotionPiece" },
     ],
   },
@@ -158,18 +214,22 @@ export const GRAMMAR_PATTERNS: readonly GrammarPattern[] = [
     ],
   },
   {
-    id: "capture-promotion",
+    id: "capture-move-with-origin",
     description:
-      'Piece (optional) + takes + destination square + promotion piece, e.g. ' +
-      '"pawn takes e eight queen". A large fraction of real promotions happen ' +
-      "via capture (taking on the back rank), so this needs its own pattern " +
-      "rather than being covered by capture-move + a leftover token.",
+      'Origin square + takes + destination square, e.g. "knight g4 takes e5", ' +
+      '"bishop c1 takes h6". Added for grammar expansion -- the original build ' +
+      "deliberately had no pattern for an explicit origin square before \"takes\" " +
+      '(capture-move below only supports piece-name-or-nothing + takes + destination, ' +
+      "never an origin square), documented at the time as a real gap rather than an " +
+      "oversight. Must be checked before capture-move, since capture-move's shape is " +
+      "a strict prefix of this one.",
     slots: [
       { type: "piece", optional: true },
+      { type: "file" },
+      { type: "rank" },
       { type: "takes" },
       { type: "file" },
       { type: "rank" },
-      { type: "promotionPiece" },
     ],
   },
   {
@@ -180,6 +240,25 @@ export const GRAMMAR_PATTERNS: readonly GrammarPattern[] = [
       { type: "takes" },
       { type: "file" },
       { type: "rank" },
+    ],
+  },
+  {
+    id: "destination-promotion",
+    description:
+      'Destination square + promotion piece, with no origin square at all, e.g. ' +
+      '"h8 queen", "pawn h8 queen", "pawn to h8 queen". Added for grammar expansion -- ' +
+      "previously EVERY promotion pattern required an explicit origin square " +
+      "(from-to-promotion, capture-promotion); this is the bare destination-only form, " +
+      "the promotion equivalent of destination-move below. Must be checked before " +
+      "destination-move, since destination-move's shape is a strict prefix of this one. " +
+      'The second optional "to" supports "pawn h8 promote to queen" (see capture-promotion\'s note).',
+    slots: [
+      { type: "piece", optional: true },
+      { type: "to", optional: true },
+      { type: "file" },
+      { type: "rank" },
+      { type: "to", optional: true },
+      { type: "promotionPiece" },
     ],
   },
   {
@@ -204,6 +283,20 @@ export const GRAMMAR_PATTERNS: readonly GrammarPattern[] = [
     description: 'Queenside castling, e.g. "castle queenside", "long castle", "O O O".',
     slots: [{ type: "castleQueenside" }],
   },
+  {
+    id: "castle-ambiguous-kingside",
+    description:
+      'One half of bare, unqualified "castle" (no direction specified) -- see ' +
+      "isCastleWordToken's doc comment for why this deliberately produces two " +
+      "separate ParseResults (this pattern + castle-ambiguous-queenside) rather " +
+      "than picking a default direction.",
+    slots: [{ type: "castleWord" }],
+  },
+  {
+    id: "castle-ambiguous-queenside",
+    description: 'The other half of bare "castle" -- see castle-ambiguous-kingside.',
+    slots: [{ type: "castleWord" }],
+  },
 ];
 
 /**
@@ -221,4 +314,5 @@ export const SLOT_PREDICATES: Readonly<Record<SlotType, (token: string) => boole
   promotionPiece: isPromotionPieceToken,
   castleKingside: isCastleKingsideToken,
   castleQueenside: isCastleQueensideToken,
+  castleWord: isCastleWordToken,
 };

@@ -492,26 +492,15 @@ function PlayPage() {
       case "offer-draw":
         handleDrawOffer();
         break;
+      case "hint":
+        handleHint();
+        break;
     }
   };
 
   const { activate } = useVoiceEngine({
     getFen: () => fenRef.current,
-    executeMove: (m) => {
-
-  const ok = move(
-  m.from as Square,
-  m.to as Square,
-  m.promotion?.toLowerCase() as
-    | "q"
-    | "r"
-    | "b"
-    | "n"
-    | undefined,
-);
-
-  return ok;
-},
+    executeMove: (m) => move(m.from as Square, m.to as Square, m.promotion as "q" | "r" | "b" | "n" | undefined),
     onCommand: handleVoiceCommand,
     enabled: voiceEnabled,
   });

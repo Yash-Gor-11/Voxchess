@@ -135,11 +135,19 @@ export const CASTLE_PHRASE_ALIASES: Record<string, string> = {
   "castle kingside": "castle-kingside",
   "short castle": "castle-kingside",
   "castle king side": "castle-kingside",
+  "king side castle": "castle-kingside",
   "o o": "castle-kingside",
+  // Digit-zero notation ("0-0" -> "0 0" after Normalizer's punctuation
+  // strip turns the hyphen into a space). "0" has no other meaning
+  // anywhere in this grammar (ranks are 1-8, never 0), so this is
+  // unambiguous to claim.
+  "0 0": "castle-kingside",
   "castle queenside": "castle-queenside",
   "long castle": "castle-queenside",
   "castle queen side": "castle-queenside",
+  "queen side castle": "castle-queenside",
   "o o o": "castle-queenside",
+  "0 0 0": "castle-queenside",
 };
 
 /**
@@ -165,4 +173,11 @@ export const FILLER_WORDS: ReadonlySet<string> = new Set([
   "okay",
   "ok",
   "so",
+  // Added for grammar expansion: none of these collide with existing
+  // vocabulary (not piece/file/number/capture words), unlike "a"/"an"
+  // above there's no positional ambiguity that requires grammar-level
+  // handling -- safe to strip unconditionally.
+  "move", // "move pawn to e4" -> "pawn to e4" (already-supported shape)
+  "from", // "pawn from e2 to e4" / "knight from g1 to f3" -> already-supported shapes
+  "promote", // "h8 promote to queen" -> "h8 to queen" (see grammar.ts's new optional to-before-promotionPiece slots)
 ]);

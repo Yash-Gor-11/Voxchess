@@ -19,11 +19,13 @@
 // existing nav-command check first.
 //
 // Command scope for Analysis: only "flip-board" is honored from
-// CommandParser's fixed-phrase vocabulary. undo/resign/offer-draw have no
-// Analysis-mode meaning (tree "back"/"previous" already covers undo-like
-// intent, and there's no resign/draw concept mid-analysis) -- spoken but
-// silently ignored here rather than mis-mapped onto some approximated
-// Analysis behavior.
+// CommandParser's fixed-phrase vocabulary. undo/resign/offer-draw/hint
+// have no Analysis-mode meaning (tree "back"/"previous" already covers
+// undo-like intent, there's no resign/draw concept mid-analysis, and
+// hint is a Play-only bot-game feature with no Analysis equivalent --
+// the Engine panel already shows live evaluation) -- spoken but silently
+// ignored here rather than mis-mapped onto some approximated Analysis
+// behavior.
 //
 // Recognition source: BrowserRecognizer (recognition/BrowserRecognizer.ts),
 // replacing the legacy lib/voice/speechRecognition.ts per the Phase 1
@@ -182,7 +184,7 @@ export function useAnalysisVoice(options: UseAnalysisVoiceOptions) {
       if (command.type === "flip-board") {
         optsRef.current.onFlipBoard();
       }
-      // undo/resign/offer-draw: no Analysis-mode meaning — ignored.
+      // undo/resign/offer-draw/hint: no Analysis-mode meaning — ignored.
       optsRef.current.onIdle();
       return;
     }

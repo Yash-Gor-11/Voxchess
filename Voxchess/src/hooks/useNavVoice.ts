@@ -8,7 +8,6 @@ import {
   type RecognitionHandle,
 } from "@/lib/voice/speechRecognition";
 import { parseNavPhrase } from "@/lib/voice/navVoiceHandler";
-import { supabase } from "@/integrations/supabase/client";
 
 export function useNavVoice() {
   const navigate = useNavigate();
@@ -36,7 +35,7 @@ export function useNavVoice() {
     setTranscript("");
     setResult(null);
     handleRef.current = startRecognition({
-      onResult: async (t, isFinal) => {
+      onResult: (t, isFinal) => {
         setTranscript(t);
         if (!isFinal) return;
 
@@ -46,15 +45,6 @@ export function useNavVoice() {
           setStatus("error");
           setResult({ ok: false, message: cmd.message });
           toast.error(cmd.message ?? "Unknown command");
-        } else if (cmd.action === "signout") {
-          setStatus("success");
-          setResult({ ok: true, message: "Signing out…" });
-          await supabase.auth.signOut();
-          navigate({ to: "/auth/login" });
-        } else if (cmd.action === "newgame") {
-          navigate({ to: "/play" });
-          setStatus("success");
-          setResult({ ok: true, message: "Starting new game" });
         } else if (cmd.to) {
           // cmd.to is a runtime-validated route string from navVoiceHandler.
           // TanStack Router's navigate expects its own ValidRoutes generic
